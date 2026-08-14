@@ -60,3 +60,33 @@ test('変更集合を format.json へ適用できる（定数トークンのみ�
   const timestamp = updated.timeBlock.find((entry) => entry.group === 8 && entry.kind === 'j');
   assert.equal(timestamp.value, '{timestamp}');
 });
+
+test('同じ group+kind が複数ある差分は適用しない（形式を壊さないため）', () => {
+  const format = loadFormat();
+  // !2m は地点ブロック（値 2）と時刻ブロック（値 3）の両方にある。
+  const updated = applyChanges(format, [
+    { type: 'changed', key: '2m', before: ['!2m3'], after: ['!2m4'] }
+  ]);
+
+  const place = updated.placeBlock.find((t) => t.group === 2 && t.kind === 'm');
+  const time = updated.timeBlock.find((t) => t.group === 2 && t.kind === 'm');
+  assert.equal(place.value, '2', '地点ブロックが巻き添えで壊れていない');
+  assert.equal(time.value, '3', '曖昧な差分は当てない');
+});
+
+test('一意に決まる差分は適用する', () => {
+  const format = loadFormat();
+  // !7e は時刻ブロックにしかない。
+  const updated = applyChanges(format, [
+    { type: 'changed', key: '7e', before: ['!7e2'], after: ['!7e4'] }
+  ]);
+  assert.equal(updated.timeBlock.find((t) => t.group === 7 && t.kind === 'e').value, '4');
+});
+
+test('ラッパーのブロック長は書き換え対象にしない（プレースホルダのため）', () => {
+  const format = loadFormat();
+  const updated = applyChanges(format, [
+    { type: 'changed', key: '4m', before: ['!4m13'], after: ['!4m15'] }
+  ]);
+  assert.equal(updated.wrapper.inner.value, '{innerCount}', 'トークン数は自動計算のまま');
+});

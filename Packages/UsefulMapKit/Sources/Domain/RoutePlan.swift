@@ -198,6 +198,15 @@ public struct RoutePlan: Hashable, Sendable {
         }
     }
 
+    /// 区間をユーザー指定として固定する（自動分割の対象から外す）。
+    public mutating func lockSegment(at index: Int) {
+        guard modes.indices.contains(index) else { return }
+        let mode = modes[index]
+        updateLock(at: index) { lock in
+            if lock.mode == nil { lock.mode = mode }
+        }
+    }
+
     /// 区間の指定を解除して、自動推定に戻す。
     public mutating func clearLock(at index: Int) {
         guard let key = segmentKey(at: index) else { return }

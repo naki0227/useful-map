@@ -80,21 +80,36 @@ struct RoutePlanViewModelTests {
         #expect(viewModel.nodes[1].place.name == "別の駅")
     }
 
-    @Test("経由地の追加は最後の区間の途中に入る")
-    func addsWaypoint() async {
+    @Test("経由地は押した区間の途中に入る（他のノードは消えない）")
+    func addsWaypointIntoChosenSegment() async {
         let viewModel = makeViewModel()
         await viewModel.reload().value
 
-        viewModel.beginAddingWaypoint()
-        #expect(viewModel.addingWaypointAfterSegment == 2)
-        #expect(viewModel.editingNodeIndex == 3)
+        // 先頭の区間（自宅 → 近所の駅）の途中に足す。
+        viewModel.beginAddingWaypoint(afterSegment: 0)
+        #expect(viewModel.addingWaypointAfterSegment == 0)
+        #expect(viewModel.editingNodeIndex == nil, "既存ノードの編集は始まらない")
 
-        viewModel.commitPlace(Place(name: "寄り道", latitude: 34.9900, longitude: 135.7590), at: 3)
+        viewModel.commitPlace(Place(name: "寄り道", latitude: 34.7460, longitude: 135.5000), at: 0)
         await viewModel.reload().value
 
         #expect(viewModel.nodes.map(\.place.name)
-                == ["自宅", "近所の駅", "京都駅", "寄り道", "京都ホテル"])
+                == ["自宅", "寄り道", "近所の駅", "京都駅", "京都ホテル"],
+                "目的地も他のノードも消えない")
         #expect(viewModel.addingWaypointAfterSegment == nil)
+    }
+
+    @Test("経由地の追加はキャンセルできる")
+    func cancelsAddingWaypoint() async {
+        let viewModel = makeViewModel()
+        await viewModel.reload().value
+        let before = viewModel.nodes
+
+        viewModel.beginAddingWaypoint(afterSegment: 1)
+        viewModel.cancelAddingWaypoint()
+
+        #expect(viewModel.addingWaypointAfterSegment == nil)
+        #expect(viewModel.nodes == before)
     }
 
     @Test("入れ替えで出発地と目的地が反転する")
@@ -261,5 +276,62 @@ struct RoutePlanViewModelTests {
         let before = viewModel.nodes
         viewModel.removeNode(at: 0)
         #expect(viewModel.nodes == before)
+    }
+}
+
+@Suite("ノードの自動振り分け")
+@MainActor
+struct AutomaticNodeAssignmentTests {
+    private let home = Place(name: "自宅", latitude: 34.7500, longitude: 135.5000)
+    private let station = Place(name: "近所の駅", latitude: 34.7428, longitude: 135.5000)
+    private let goal = Place(name: "京都ホテル", latitude: 34.9950, longitude: 135.7600)
+
+    /// 自宅の近くと目的地の近くに駅がある状況。
+    private func makeViewModel() -> RoutePlanViewModel {
+        let stops = FakeStopLocator()
+        stops.table = [(home.coordinate, [station]),
+                       (goal.coordinate, [Place(name: "京都駅", latitude: 34.9858, longitude: 135.7587)])]
+        let planner = RoutePlanner(stops: stops, routing: SimpleSegmentRouting())
+        let plan = RoutePlan.simple(origin: RouteNode(place: home, kind: .origin),
+                                    destination: RouteNode(place: goal, kind: .destination),
+                                    mode: .transit)
+        return RoutePlanViewModel(plan: plan,
+                                  dependencies: TestEnvironment.make(planner: planner))
+    }
+
+    @Test("ユーザーが足した経由地を外すと、自動推定に戻る")
+    func removingUserWaypointRestoresInference() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.rebuild(preset: .transit).value
+        #expect(!viewModel.nodes.filter(\.isInferred).isEmpty, "前提: 駅が自動で挟まっている")
+
+        viewModel.insertWaypoint(Place(name: "寄り道", latitude: 34.8000, longitude: 135.6000),
+                                 afterSegment: 0)
+        await viewModel.reload().value
+        #expect(viewModel.nodes.map(\.place.name).contains("寄り道"))
+
+        // #require の中でクロージャを使うと throws 扱いになるため、先に配列へ落とす。
+        let names = viewModel.nodes.map(\.place.name)
+        let waypointIndex = try #require(names.firstIndex(of: "寄り道"))
+        viewModel.removeNode(at: waypointIndex)
+        await viewModel.reload().value
+
+        #expect(!viewModel.nodes.map(\.place.name).contains("寄り道"))
+        #expect(!viewModel.nodes.filter(\.isInferred).isEmpty, "駅の自動推定が残っている")
+    }
+
+    @Test("自動で挟まった駅を外したら、勝手に戻さない")
+    func removingInferredStationIsRespected() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.rebuild(preset: .transit).value
+
+        let inferredFlags = viewModel.nodes.map(\.isInferred)
+        let stationIndex = try #require(inferredFlags.firstIndex(of: true))
+        let stationName = viewModel.nodes[stationIndex].place.name
+
+        viewModel.removeNode(at: stationIndex)
+        await viewModel.reload().value
+
+        #expect(!viewModel.nodes.map(\.place.name).contains(stationName), "外した駅が復活しない")
     }
 }

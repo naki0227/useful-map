@@ -147,9 +147,11 @@ public final class RoutePlanViewModel: ObservableObject {
 
     private func performLoad(_ target: RoutePlan, generation currentGeneration: Int) async {
         do {
-            let computed = try await planner
-                .withWalkingPace(walkingPace)
-                .computeLegs(target)
+            let configured = planner.withWalkingPace(walkingPace)
+            // 区間を取り直したあと、常にノードを自動で振り分け直す。
+            // ユーザーが決めた区間はロックされているので触られない。
+            let computed = try await configured.refine(configured.computeLegs(target),
+                                                       depth: RouteRefinementPolicy.default.maxDepth)
             guard currentGeneration == generation, !Task.isCancelled else { return }
 
             plan = computed
@@ -249,11 +251,16 @@ public final class RoutePlanViewModel: ObservableObject {
         reload()
     }
 
-    /// 経由地の追加を始める（最後の区間の途中に足す）。
-    public func beginAddingWaypoint() {
-        let target = max(0, plan.segments.count - 1)
-        addingWaypointAfterSegment = target
-        editingNodeIndex = target + 1
+    /// 指定した区間の途中に経由地を足し始める。
+    /// 既存のノードは隠さず、区間の間に新しい入力欄を差し込む。
+    public func beginAddingWaypoint(afterSegment index: Int) {
+        guard plan.segments.indices.contains(index) else { return }
+        addingWaypointAfterSegment = index
+        editingNodeIndex = nil
+    }
+
+    public func cancelAddingWaypoint() {
+        addingWaypointAfterSegment = nil
     }
 
     /// 便の選び直しを始める。
@@ -285,8 +292,17 @@ public final class RoutePlanViewModel: ObservableObject {
         }
     }
 
+    /// ノードを外す。
+    ///
+    /// 自動で推定した駅を外した場合は「ここは通らない」という意思表示なので、
+    /// 統合後の区間をロックして再推定の対象から外す。
+    /// ユーザーが足した経由地を外した場合はロックせず、自動推定に戻す。
     public func removeNode(at index: Int) {
+        let wasInferred = plan.nodes[safeIndex: index]?.isInferred ?? false
         plan.removeNode(at: index)
+        if wasInferred, index > 0 {
+            plan.lockSegment(at: index - 1)
+        }
         reload()
     }
 

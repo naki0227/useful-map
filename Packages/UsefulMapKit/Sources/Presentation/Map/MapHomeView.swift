@@ -65,9 +65,13 @@ public struct MapHomeView: View {
             .accessibilityIdentifier("map.canvas")
             .accessibilityLabel(L10n.string("map.canvas"))
             .onTapGesture { position in
-                // 「地図で選ぶ」中のときだけ、タップを地点選択として扱う。
-                guard router.mapPickTarget != nil,
-                      let coordinate = proxy.convert(position, from: .local) else { return }
+                // 編集中に地図を触ったら入力を閉じる。
+                guard router.mapPickTarget != nil else {
+                    router.planViewModel?.editingNodeIndex = nil
+                    router.planViewModel?.cancelAddingWaypoint()
+                    return
+                }
+                guard let coordinate = proxy.convert(position, from: .local) else { return }
                 Task { await pickPlace(at: Coordinate(latitude: coordinate.latitude,
                                                       longitude: coordinate.longitude)) }
             }
@@ -89,9 +93,9 @@ public struct MapHomeView: View {
             if let planViewModel = router.planViewModel {
                 RoutePlanChainView(viewModel: planViewModel,
                                    dependencies: dependencies,
-                                   center: viewModel.currentCoordinate) { index in
-                    router.mapPickTarget = index
-                }
+                                   center: viewModel.currentCoordinate,
+                                   onPickOnMap: { index in router.mapPickTarget = index },
+                                   onClose: { router.closeRoute() })
                 if router.mapPickTarget != nil {
                     mapPickHint
                 }
@@ -180,7 +184,9 @@ public struct MapHomeView: View {
             if let planViewModel = router.planViewModel {
                 RoutePlanSummaryView(viewModel: planViewModel)
             } else if let place = router.detailPlace {
-                PlaceDetailView(place: place, dependencies: dependencies)
+                PlaceDetailView(place: place,
+                                dependencies: dependencies,
+                                onClose: { router.detailPlace = nil })
             } else {
                 recentsCard
             }

@@ -171,8 +171,10 @@ final class UsefulMapUITests: XCTestCase {
         XCTAssertTrue(url.contains("!6e0"), "出発時刻指定になっていない: \(url)")
         XCTAssertTrue(url.hasSuffix("!3e3"), "公共交通モードになっていない: \(url)")
         // 区間は 2 地点なので、地点ブロックは 2 つ（Google は公共交通の経由地を扱えない）。
-        XCTAssertEqual(url.components(separatedBy: "!1m5!1m1!1s0x0:0x0").count - 1, 2,
+        XCTAssertEqual(url.components(separatedBy: "!1m3!2m2!1d").count - 1, 2,
                        "区間の詳細に経由地が混ざっている: \(url)")
+        // Place ID を入れると Google が地点を解決できなくなる。
+        XCTAssertFalse(url.contains("!1s"), "Place ID が混ざっている: \(url)")
     }
 
     // MARK: - E2E 6: Primary URL が壊れたときの公式 URL fallback
@@ -238,6 +240,46 @@ final class UsefulMapUITests: XCTestCase {
     }
 }
 
+extension UsefulMapUITests {
+    // MARK: - E2E 9: 経路を閉じて最初の地図に戻れる
+
+    func testClosingRouteReturnsToMap() {
+        launch()
+        searchAndOpenTokyoStation()
+        openRoute()
+        XCTAssertTrue(app.buttons[A11y.node(0)].waitForExistence(timeout: timeout()))
+
+        app.buttons[A11y.closeRouteButton].tap()
+
+        // 最初の検索欄に戻る。
+        XCTAssertTrue(app.buttons[A11y.searchField].waitForExistence(timeout: timeout()),
+                      "最初の画面に戻れない")
+        XCTAssertFalse(app.buttons[A11y.node(0)].exists, "経路が残っている")
+    }
+
+    // MARK: - E2E 10: 経由地は押した区間に入り、他のノードは消えない
+
+    func testAddingWaypointKeepsOtherNodes() {
+        launch()
+        searchAndOpenTokyoStation()
+        openRoute()
+
+        XCTAssertTrue(app.buttons[A11y.node(0)].waitForExistence(timeout: timeout()))
+        let nodeCountBefore = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@",
+                                                              "route.node.")).count
+
+        // 先頭の区間に経由地を足す。
+        app.buttons[A11y.addWaypoint(0)].tap()
+
+        // 入力欄が出ても、既存のノードは消えない。
+        XCTAssertTrue(app.textFields[A11y.nodeField(0)].waitForExistence(timeout: timeout()),
+                      "経由地の入力欄が出ない")
+        let nodeCountDuring = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@",
+                                                               "route.node.")).count
+        XCTAssertEqual(nodeCountDuring, nodeCountBefore, "既存のノードが消えている")
+    }
+}
+
 /// Presentation の A11y 識別子と同じ値。
 /// UI テストターゲットはアプリのモジュールを import しないため、ここで定義を持つ。
 /// （値がずれた場合は E2E が落ちるので、実質的な同期チェックになる）
@@ -252,6 +294,9 @@ enum A11y {
     static func detailButton(_ index: Int) -> String { "routeCompare.detail.\(index)" }
     static let walkingPaceButton = "route.walkingPace"
     static let swapButtonInline = "route.swap"
+    static let closeRouteButton = "route.close"
+
+    static func addWaypoint(_ index: Int) -> String { "route.addWaypoint.\(index)" }
 
     static func node(_ index: Int) -> String { "route.node.\(index)" }
     static func nodeField(_ index: Int) -> String { "route.node.field.\(index)" }

@@ -88,3 +88,5 @@
 "route.total" = "합계 %@";
 "route.openDetail" = "구글 지도에서 상세";
 "route.pickDeparture" = "출발 시각 선택";
+"route.close" = "경로 닫기";
+"common.done" = "완료";

@@ -48,6 +48,13 @@ struct InlinePlaceField: View {
         }
         .padding(.vertical, 4)
         .onAppear { isFocused = true }
+        .toolbar {
+            // 検索しなくてもキーボードを閉じられるようにする。
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(L10n.string("common.done")) { isFocused = false }
+            }
+        }
     }
 
     private var field: some View {

@@ -16,12 +16,19 @@ struct RoutePlanChainView: View {
     let center: Coordinate?
     let onPickOnMap: (Int) -> Void
 
+    let onClose: () -> Void
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            header
             ForEach(Array(viewModel.nodes.enumerated()), id: \.element.id) { index, node in
                 nodeRow(node, at: index)
                 if index < viewModel.segments.count {
                     segmentRow(viewModel.segments[index], at: index)
+                    // 経由地の追加中は、その区間の間に入力欄を差し込む（既存のノードは隠さない）。
+                    if viewModel.addingWaypointAfterSegment == index {
+                        waypointField(afterSegment: index)
+                    }
                 }
             }
             controls
@@ -29,6 +36,39 @@ struct RoutePlanChainView: View {
         .padding(14)
         .background(.background, in: RoundedRectangle(cornerRadius: 16))
         .shadow(color: .black.opacity(0.12), radius: 10, y: 2)
+    }
+
+    /// 経路を閉じて最初の地図に戻る。
+    private var header: some View {
+        HStack {
+            Spacer()
+            Button {
+                onClose()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .frame(width: 30, height: 30)
+                    .background(Color.secondary.opacity(0.12), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(A11y.closeRouteButton)
+            .accessibilityLabel(L10n.string("route.close"))
+        }
+    }
+
+    /// 区間の途中に足す経由地の入力欄。
+    private func waypointField(afterSegment index: Int) -> some View {
+        InlinePlaceField(index: index,
+                         title: L10n.string("editor.waypoint"),
+                         placeholder: L10n.string("editor.waypoint"),
+                         allowsCurrentLocation: false,
+                         dependencies: dependencies,
+                         center: center,
+                         onSelect: { viewModel.insertWaypoint($0, afterSegment: index) },
+                         onUseCurrentLocation: {},
+                         onPickOnMap: { onPickOnMap(-index - 1) },
+                         onCancel: { viewModel.cancelAddingWaypoint() })
+            .padding(.leading, 30)
     }
 
     // MARK: - 地点
@@ -129,6 +169,7 @@ struct RoutePlanChainView: View {
 
                 segmentSummary(segment, at: index)
                 Spacer()
+                addWaypointButton(at: index)
                 detailButton(at: index)
             }
 
@@ -170,6 +211,21 @@ struct RoutePlanChainView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// その区間の途中に経由地を足す。押した区間に入る。
+    private func addWaypointButton(at index: Int) -> some View {
+        Button {
+            viewModel.beginAddingWaypoint(afterSegment: index)
+        } label: {
+            Image(systemName: "plus.circle")
+                .font(.footnote)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(A11y.addWaypoint(index))
+        .accessibilityLabel(L10n.string("editor.addWaypoint"))
     }
 
     /// 区間ごとの「詳細へ」。
@@ -233,11 +289,6 @@ struct RoutePlanChainView: View {
                           label: L10n.string("editor.useCurrentLocation"),
                           identifier: A11y.currentLocationButton) {
                 viewModel.useCurrentLocation()
-            }
-            controlButton(symbol: "plus",
-                          label: L10n.string("editor.addWaypoint"),
-                          identifier: A11y.addWaypointInline) {
-                viewModel.beginAddingWaypoint()
             }
             Spacer()
             // 徒歩の速さをボタン 1 つで 普通 → 速い → 遅い と切り替える。

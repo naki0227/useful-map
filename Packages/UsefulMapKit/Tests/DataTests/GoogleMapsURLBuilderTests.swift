@@ -77,9 +77,9 @@ struct GoogleMapsURLBuilderTests {
 
         #expect(url.absoluteString == "https://www.google.com/maps/dir/"
                 + "%E7%8F%BE%E5%9C%A8%E5%9C%B0/%E6%9D%B1%E4%BA%AC%E9%A7%85/data="
-                + "!4m18!4m17"
-                + "!1m5!1m1!1s0x0:0x0!2m2!1d139.7649000!2d35.6993000"
-                + "!1m5!1m1!1s0x0:0x0!2m2!1d139.7671248!2d35.6812362"
+                + "!4m14!4m13"
+                + "!1m3!2m2!1d139.7649000!2d35.6993000"
+                + "!1m3!2m2!1d139.7671248!2d35.6812362"
                 + "!2m3!6e0!7e2!8j1786703520"
                 + "!3e3")
     }
@@ -115,9 +115,9 @@ struct GoogleMapsURLBuilderTests {
         let raw = try #require(url.absoluteString.components(separatedBy: "/data=").last)
         let tokens = try #require(GoogleMapsDataParam.parse(raw))
 
-        // 地点 3 つ ×6 + 時刻 4 + モード 1 = 23
-        #expect(tokens[0] == DataToken(group: 4, kind: "m", value: "24"))
-        #expect(tokens[1] == DataToken(group: 4, kind: "m", value: "23"))
+        // 地点 3 つ ×4 + 時刻 4 + モード 1 = 17
+        #expect(tokens[0] == DataToken(group: 4, kind: "m", value: "18"))
+        #expect(tokens[1] == DataToken(group: 4, kind: "m", value: "17"))
         #expect(url.absoluteString.contains("!1d139.7100000!2d35.6852000"))
         #expect(url.path.contains("新宿御苑".addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")
                 || url.absoluteString.contains("%E6%96%B0%E5%AE%BF%E5%BE%A1%E8%8B%91"))
@@ -263,13 +263,15 @@ struct GoogleMapsURLBuilderTests {
 
     // MARK: - 隔離
 
-    @Test("生成 URL は Google Place ID を要求しない")
-    func doesNotRequirePlaceID() throws {
+    @Test("生成 URL は Google Place ID を含めない")
+    func doesNotIncludePlaceID() throws {
         let (builder, _) = makeBuilder()
         let url = try #require(builder.primaryURL(for: makeOption(departure: date(10, 32))))
-        // Place ID の位置には中立値だけが入る。
-        #expect(url.absoluteString.contains("!1s0x0:0x0"))
+        // Place ID を入れると Google が解決に失敗し、地点が見つからなくなる。
+        // 座標だけを渡すのが正しい（実機で検証済み）。
+        #expect(!url.absoluteString.contains("!1s"))
         #expect(!url.absoluteString.contains("place_id"))
+        #expect(url.absoluteString.contains("!1m3!2m2!1d"))
     }
 }
 
@@ -323,10 +325,10 @@ struct GoogleWaypointConstraintTests {
         let url = try #require(makeBuilder().primaryURL(for: option(mode: .transit)))
         #expect(!url.absoluteString.contains("139.7649000!2d35.6993000"),
                 "経由地の座標ブロックが入っている")
-        // 地点ブロックは 2 つ ×6 + 時刻 4 + モード 1 = 17。
+        // 地点ブロックは 2 つ ×4 + 時刻 4 + モード 1 = 13。
         let raw = try #require(url.absoluteString.components(separatedBy: "/data=").last)
         let tokens = try #require(GoogleMapsDataParam.parse(raw))
-        #expect(tokens[1] == DataToken(group: 4, kind: "m", value: "17"))
+        #expect(tokens[1] == DataToken(group: 4, kind: "m", value: "13"))
     }
 
     @Test("公式 URL でも公共交通では waypoints を付けない")

@@ -117,9 +117,9 @@ open UsefulMap.xcodeproj
 ## テスト
 
 ```bash
-make unit          # Swift Testing 251 件（単体 + アーキテクチャ + ローカライズ）
+make unit          # Swift Testing 254 件（単体 + アーキテクチャ + ローカライズ）
 make contract-unit # 契約監視の単体テスト 19 件（ネットワーク不要）
-make e2e           # XCUITest 8 本（シミュレータ内で完結）
+make e2e           # XCUITest 10 本（シミュレータ内で完結）
 make all           # PR 前の一式（+ SwiftLint, jscpd）
 ```
 
@@ -158,6 +158,18 @@ make generate-format   # format.json から Swift を再生成
 make verify-format     # 生成物がずれていないか確認（CI でも実行）
 ```
 
+### 地点ブロックに Place ID を入れてはいけない
+
+`!1m1!1s0x0:0x0` のような Place ID のプレースホルダを入れると、Google が解決に失敗して
+**「(地点名) が見つかりませんでした」**になります。座標だけを渡すのが正しい形です。
+
+```
+正: !1m3!2m2!1d{longitude}!2d{latitude}
+誤: !1m5!1m1!1s0x0:0x0!2m2!1d{longitude}!2d{latitude}
+```
+
+実機の Safari で札幌駅→小樽駅を開いて確認しました（2026-08-15）。
+
 ### `!8j` の時刻値について
 
 実測では `!8j` は「ローカル表示したい年月日時分を、そのまま UTC の壁時計として epoch 化した値」でした。
@@ -179,6 +191,13 @@ FAIL → 診断 Artifact（screenshot / trace / HTML report / 最終 URL）
 ```
 
 「FAIL した」だけでは PR を作りません（仕様書 9）。
+
+実行には Playwright の準備が要ります。
+
+```bash
+cd contract-watch && npm install --no-package-lock && npx playwright install chromium
+npx playwright test     # 実際に Google Maps を開いて 10 件検証
+```
 PR には `format.json` と生成された Swift の両方の差分が載るため、マージすればアプリ側も追随します。
 形式が変わると `GoogleMapsURLBuilderTests` のスナップショットが意図的に落ちるので、
 そこが「形式変更を人間が承認する場所」になります。

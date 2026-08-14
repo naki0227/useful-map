@@ -88,3 +88,5 @@
 "route.total" = "合计 %@";
 "route.openDetail" = "在谷歌地图查看详情";
 "route.pickDeparture" = "选择出发时刻";
+"route.close" = "关闭路线";
+"common.done" = "完成";

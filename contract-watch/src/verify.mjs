@@ -71,14 +71,22 @@ export async function verifyFixture(page, fixture) {
     failures.push(`経路画面ではない: ${currentURL}`);
   }
 
-  // 2. 出発地・目的地が保たれている（名称、無ければ座標）。
+  // 2. 出発地・目的地が保たれている。
+  //    名前を渡した場合は画面にその名前が出る。
+  //    名前なし（座標のみ）の場合、Google は住所へ逆引きして表示するため画面文字列では確認できない。
+  //    その場合は URL に座標が残っているかで判定する。
   for (const [role, place] of [['出発地', fixture.origin], ['目的地', fixture.destination]]) {
     const name = (place.name ?? '').trim();
-    const patterns = name
-      ? [new RegExp(escapeRegExp(name))]
-      : [new RegExp(String(place.latitude).slice(0, 7)), new RegExp(String(place.longitude).slice(0, 8))];
-    if (!(await pageContainsAny(page, patterns))) {
-      failures.push(`${role}が反映されていない: ${name || `${place.latitude},${place.longitude}`}`);
+    if (name) {
+      if (!(await pageContainsAny(page, [new RegExp(escapeRegExp(name))]))) {
+        failures.push(`${role}が反映されていない: ${name}`);
+      }
+      continue;
+    }
+    const latitude = String(place.latitude).slice(0, 7);
+    const longitude = String(place.longitude).slice(0, 8);
+    if (!currentURL.includes(latitude) || !currentURL.includes(longitude)) {
+      failures.push(`${role}の座標が URL から失われた: ${place.latitude},${place.longitude}`);
     }
   }
 

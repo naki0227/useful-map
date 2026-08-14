@@ -23,9 +23,7 @@ enum GoogleMapsURLFormat {
 
     /// 地点 1 つぶんのブロック。
     static let placeBlock: [FormatToken] = [
-        FormatToken(group: 1, kind: "m", value: .constant("5")),
-        FormatToken(group: 1, kind: "m", value: .constant("1")),
-        FormatToken(group: 1, kind: "s", value: .constant("0x0:0x0")),
+        FormatToken(group: 1, kind: "m", value: .constant("3")),
         FormatToken(group: 2, kind: "m", value: .constant("2")),
         FormatToken(group: 1, kind: "d", value: .placeholder(.longitude)),
         FormatToken(group: 2, kind: "d", value: .placeholder(.latitude))

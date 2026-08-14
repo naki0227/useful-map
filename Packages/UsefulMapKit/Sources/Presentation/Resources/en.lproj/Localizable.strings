@@ -88,3 +88,5 @@
 "route.total" = "Total %@";
 "route.openDetail" = "Details in Google Maps";
 "route.pickDeparture" = "Choose departure";
+"route.close" = "Close route";
+"common.done" = "Done";

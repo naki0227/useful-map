@@ -127,12 +127,18 @@ function split(items, count) {
 
 /**
  * 変更集合を format.json へ適用する。
+ *
  * トークンの group+kind をキーに、定数値のトークンだけを差し替える
  * （座標や timestamp のようなプレースホルダは書き換えない）。
+ *
+ * 同じ group+kind が複数の場所に存在する場合（例: `!2m` は地点ブロックにも
+ * 時刻ブロックにもある）、どちらを直すべきか決められない。
+ * 当てずっぽうで両方書き換えると形式全体を壊すので、その差分は適用しない。
+ * 適用できなかった差分があると `minimizeChangeSet` の検証が通らず、
+ * 「自動修復不能」として Issue に回る。
  */
 export function applyChanges(format, changes) {
   const next = structuredClone(format);
-  const sections = ['placeBlock', 'timeBlock'];
 
   for (const change of changes) {
     if (change.type !== 'changed' || !change.after || change.after.length === 0) continue;
@@ -140,21 +146,29 @@ export function applyChanges(format, changes) {
     if (!parsed || parsed.length !== 1) continue;
     const token = parsed[0];
 
-    let applied = false;
-    for (const section of sections) {
-      for (const entry of next[section]) {
-        if (entry.group === token.group && entry.kind === token.kind && !String(entry.value).includes('{')) {
-          entry.value = token.value;
-          applied = true;
-        }
-      }
-    }
-    if (!applied
-        && next.modeToken.group === token.group
-        && next.modeToken.kind === token.kind
-        && !String(next.modeToken.value).includes('{')) {
-      next.modeToken.value = token.value;
+    const targets = constantTargets(next, token);
+    // 一意に決まるときだけ書き換える。
+    if (targets.length === 1) {
+      targets[0].value = token.value;
     }
   }
   return next;
+}
+
+/** 差し替え候補となる定数トークンを、形式定義の中から集める。 */
+function constantTargets(format, token) {
+  const isConstant = (entry) => !String(entry.value).includes('{');
+  const matches = (entry) => entry.group === token.group && entry.kind === token.kind && isConstant(entry);
+
+  const targets = [];
+  for (const section of ['placeBlock', 'timeBlock']) {
+    for (const entry of format[section]) {
+      if (matches(entry)) targets.push(entry);
+    }
+  }
+  if (matches(format.modeToken)) targets.push(format.modeToken);
+  for (const key of ['outer', 'inner']) {
+    if (matches(format.wrapper[key])) targets.push(format.wrapper[key]);
+  }
+  return targets;
 }

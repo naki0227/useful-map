@@ -134,6 +134,19 @@ struct FakePlaceResolver: PlaceResolving {
     }
 }
 
+/// 指定した座標の近くに停留所がある状況を作る。
+final class FakeStopLocator: TransitStopLocating, @unchecked Sendable {
+    var table: [(center: Coordinate, stops: [Place])] = []
+
+    func stops(near coordinate: Coordinate, within meters: Double, limit: Int) async throws -> [Place] {
+        let matched = table
+            .filter { $0.center.distance(to: coordinate) <= meters }
+            .flatMap(\.stops)
+            .filter { $0.coordinate.distance(to: coordinate) <= meters }
+        return Array(matched.prefix(limit))
+    }
+}
+
 /// 停留所を返さない既定のロケータ（プラン分割を伴わないテスト用）。
 struct EmptyStopLocator: TransitStopLocating {
     func stops(near coordinate: Coordinate, within meters: Double, limit: Int) async throws -> [Place] { [] }

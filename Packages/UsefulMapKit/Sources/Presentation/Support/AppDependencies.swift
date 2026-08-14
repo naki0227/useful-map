@@ -57,11 +57,12 @@ public enum A11y {
     public static let walkingPaceButton = "route.walkingPace"
     public static let swapButtonInline = "route.swap"
     public static let currentLocationButton = "route.useCurrentLocation"
-    public static let addWaypointInline = "route.addWaypoint"
+    public static let closeRouteButton = "route.close"
     public static let pickOnMapButton = "route.pickOnMap"
     public static let planTotal = "route.total"
     public static let openDetailButton = "route.openDetail"
 
+    public static func addWaypoint(_ index: Int) -> String { "route.addWaypoint.\(index)" }
     public static func node(_ index: Int) -> String { "route.node.\(index)" }
     public static func nodeField(_ index: Int) -> String { "route.node.field.\(index)" }
     public static func segmentMode(_ index: Int) -> String { "route.segment.mode.\(index)" }

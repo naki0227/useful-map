@@ -88,3 +88,5 @@
 "route.total" = "รวม %@";
 "route.openDetail" = "ดูรายละเอียดใน Google Maps";
 "route.pickDeparture" = "เลือกเวลาออกเดินทาง";
+"route.close" = "ปิดเส้นทาง";
+"common.done" = "เสร็จ";

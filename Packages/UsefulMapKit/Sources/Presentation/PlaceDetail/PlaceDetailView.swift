@@ -6,9 +6,10 @@ import SwiftUI
 public struct PlaceDetailView: View {
     private let place: Place
     private let dependencies: AppDependencies
+    /// 下のシートに埋め込まれるため、閉じる動作は呼び出し側が持つ。
+    private let onClose: () -> Void
     @StateObject private var viewModel: SavedViewModel
     @EnvironmentObject private var router: AppRouter
-    @Environment(\.dismiss) private var dismiss
     @State private var isLabelPickerPresented = false
 
     /// 現在地の実座標は RoutePlanViewModel が取得のたびに解決する。
@@ -17,9 +18,12 @@ public struct PlaceDetailView: View {
         Place(name: RouteEndpoint.currentLocation.displayName, coordinate: place.coordinate)
     }
 
-    public init(place: Place, dependencies: AppDependencies) {
+    public init(place: Place,
+                dependencies: AppDependencies,
+                onClose: @escaping () -> Void = {}) {
         self.place = place
         self.dependencies = dependencies
+        self.onClose = onClose
         _viewModel = StateObject(wrappedValue: SavedViewModel(dependencies: dependencies))
     }
 
@@ -49,7 +53,7 @@ public struct PlaceDetailView: View {
             }
             Spacer()
             Button {
-                dismiss()
+                onClose()
             } label: {
                 Image(systemName: "xmark")
                     .font(.subheadline.weight(.semibold))

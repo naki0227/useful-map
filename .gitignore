@@ -1,6 +1,7 @@
 # Xcode（プロジェクトは XcodeGen で生成するため管理しない）
 UsefulMap.xcodeproj/
 DerivedData/
+build/
 *.xcuserstate
 xcuserdata/
 
