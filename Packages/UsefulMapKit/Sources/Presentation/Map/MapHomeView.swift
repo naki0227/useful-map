@@ -100,7 +100,11 @@ public struct MapHomeView: View {
                     mapPickHint
                 }
             } else {
-                searchBar
+                RouteDraftView(viewModel: viewModel, dependencies: dependencies) { destination in
+                    viewModel.refreshStoredData()
+                    router.showRoute(viewModel.makePlan(destination: destination),
+                                     dependencies: dependencies)
+                }
                 quickChips
             }
             Spacer()
@@ -121,34 +125,6 @@ public struct MapHomeView: View {
         .padding(10)
         .background(.background, in: RoundedRectangle(cornerRadius: 10))
         .shadow(color: .black.opacity(0.1), radius: 6, y: 1)
-    }
-
-    private var searchBar: some View {
-        Button {
-            router.isSearchPresented = true
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                Text(l10n: "search.placeholder")
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding(.vertical, 14)
-            .padding(.horizontal, 16)
-            .background(.background, in: Capsule())
-            .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(A11y.searchField)
-        .accessibilityLabel(L10n.string("search.placeholder"))
-        .sheet(isPresented: $router.isSearchPresented) {
-            SearchView(dependencies: dependencies,
-                       center: viewModel.currentCoordinate) { place in
-                viewModel.refreshStoredData()
-                router.showPlaceDetail(place)
-            }
-        }
     }
 
     private var quickChips: some View {

@@ -31,6 +31,12 @@ struct RoutePlanChainView: View {
                     }
                 }
             }
+            Divider().padding(.vertical, 4)
+            TimeConditionPicker(preference: viewModel.plan.timePreference,
+                                date: viewModel.plan.requestedDate,
+                                now: { Date() }) { preference, date in
+                viewModel.setTimePreference(preference, date: date)
+            }
             controls
         }
         .padding(14)

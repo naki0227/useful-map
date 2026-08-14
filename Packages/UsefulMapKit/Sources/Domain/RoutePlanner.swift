@@ -14,9 +14,6 @@ public struct RouteRefinementPolicy: Sendable {
     public var preferTrainOverMeters: Double
     /// 公共交通区間がこの時間を超えたら、中の乗換地点を探して割ってみる。
     public var transitSplitThreshold: TimeInterval
-    /// 割った合計が元の何倍までなら「経路上にある」とみなすか。
-    /// ここを超えるとその中継地点は経路外と判断し、割らない。
-    public var transitSplitTolerance: Double
     /// 1 区間あたりに試す中継地点の数（MapKit のリクエスト制限があるため絞る）。
     public var maxProbesPerSegment: Int
     /// ユーザーが選んだ便を選び直すときに、出発時刻をずらして試す回数。
@@ -32,7 +29,6 @@ public struct RouteRefinementPolicy: Sendable {
                 maxDepth: Int = 2,
                 preferTrainOverMeters: Double = 3_000,
                 transitSplitThreshold: TimeInterval = 10 * 60,
-                transitSplitTolerance: Double = 0.15,
                 maxProbesPerSegment: Int = 3,
                 maxDepartureProbes: Int = 4,
                 departureProbeStep: TimeInterval = 10 * 60,
@@ -43,7 +39,6 @@ public struct RouteRefinementPolicy: Sendable {
         self.maxDepth = maxDepth
         self.preferTrainOverMeters = preferTrainOverMeters
         self.transitSplitThreshold = transitSplitThreshold
-        self.transitSplitTolerance = transitSplitTolerance
         self.maxProbesPerSegment = maxProbesPerSegment
         self.maxDepartureProbes = maxDepartureProbes
         self.departureProbeStep = departureProbeStep
@@ -71,20 +66,23 @@ public struct RoutePlanner: Sendable {
     private let policy: RouteRefinementPolicy
     /// 徒歩の速さ。MapKit の所要時間に倍率を掛けて補正する。
     public let walkingPace: WalkingPace
+    private let now: @Sendable () -> Date
 
     public init(stops: TransitStopLocating,
                 routing: SegmentRouting,
                 policy: RouteRefinementPolicy = .default,
-                walkingPace: WalkingPace = .normal) {
+                walkingPace: WalkingPace = .normal,
+                now: @escaping @Sendable () -> Date = Date.init) {
         self.stops = stops
         self.routing = routing
         self.policy = policy
         self.walkingPace = walkingPace
+        self.now = now
     }
 
     /// 徒歩ペースだけ差し替えた別の Planner を作る。
     public func withWalkingPace(_ pace: WalkingPace) -> RoutePlanner {
-        RoutePlanner(stops: stops, routing: routing, policy: policy, walkingPace: pace)
+        RoutePlanner(stops: stops, routing: routing, policy: policy, walkingPace: pace, now: now)
     }
 
     /// 出発地と目的地からプランを作り、区間を計算し、必要なら再帰的に分割する。
@@ -115,9 +113,23 @@ public struct RoutePlanner: Sendable {
     /// 後の区間は「出発時刻指定」で取り直す。
     public func computeLegs(_ plan: RoutePlan) async throws -> RoutePlan {
         var result = plan
-        for (index, segment) in plan.segments.enumerated() where segment.leg == nil {
+        // 前の区間に着いた時刻。次の区間はその時刻から出発する条件で問い合わせる。
+        // これをしないと全区間が「今から出発」で検索され、
+        // 実際には間に合わない便が表示されてしまう。
+        var cursor: Date? = plan.timePreference == .arriveBy
+            ? nil
+            : (plan.requestedDate ?? now())
+
+        for (index, segment) in plan.segments.enumerated() {
+            guard segment.leg == nil else {
+                cursor = advanced(cursor, by: segment.leg)
+                continue
+            }
             try Task.checkCancellation()
-            let condition = timeCondition(for: plan, at: index)
+            var condition = timeCondition(for: plan, at: index)
+            if plan.pinnedSegmentIndex == nil, index > 0, let cursor {
+                condition = (.departAt, cursor)
+            }
             var leg = try? await routing.leg(from: segment.from.place,
                                              to: segment.to.place,
                                              mode: segment.mode,
@@ -145,9 +157,18 @@ public struct RoutePlanner: Sendable {
                     leg = matched
                 }
             }
-            result.setLeg(leg.map { walkingPace.adjusted($0, mode: segment.mode) }, at: index)
+            let adjusted = leg.map { walkingPace.adjusted($0, mode: segment.mode) }
+            result.setLeg(adjusted, at: index)
+            cursor = advanced(cursor, by: adjusted)
         }
         return result
+    }
+
+    /// 区間を終えた時刻へ進める。時刻が返らない区間（徒歩）は所要時間で足す。
+    private func advanced(_ cursor: Date?, by leg: RouteLeg?) -> Date? {
+        guard let leg else { return nil }
+        if let arrival = leg.arrivalDate { return arrival }
+        return cursor?.addingTimeInterval(leg.expectedTravelTime)
     }
 
     /// ユーザーが選んだ所要時間に一致する便を探す。
@@ -236,7 +257,12 @@ public struct RoutePlanner: Sendable {
                                                   destinationStation: destinationStop)
     }
 
-    /// 長い徒歩区間を公共交通へ置き換え、長い公共交通区間は中の乗換地点で割る（再帰）。
+    /// 長い徒歩区間を公共交通へ置き換えられないか試す（再帰）。
+    ///
+    /// 公共交通の区間は分割しない。区間を分けて別々に検索すると待ち時間が積み上がり、
+    /// 直通で検索した場合より遅い行程になってしまうため
+    /// （実測: 萱島→淀屋橋が直通 26 分に対し、途中駅で割ると 29 分になった）。
+    /// ユーザーが指定した地点だけを固定し、その間は最速の経路を 1 回で検索する。
     public func refine(_ plan: RoutePlan, depth: Int) async throws -> RoutePlan {
         guard depth > 0 else { return plan }
 
@@ -251,25 +277,23 @@ public struct RoutePlanner: Sendable {
 
     /// 公共交通区間の内側にある乗換地点を推定して割る。
     ///
-    /// MapKit の ETA は「徒歩 + 乗車 + 乗換」を含んだ合計しか返さないため、中身は見えない。
-    /// そこで ETA を判定器として使う。中継地点 M を挟んだ
-    /// `ETA(A→M) + ETA(M→B)` が `ETA(A→B)` とほぼ同じなら、M はその経路上にあるとみなす。
-    /// 大きく増えるなら M は経路から外れているので割らない。
-    /// この条件により、層を増やしても合計時間は元の値からほとんどずれない。
+    /// MapKit の ETA は合計しか返さないため、中身は見えない。中継地点 M を挟んで
+    /// 前後を実際に検索し、**待ち時間まで含めた合計が直通より遅くならない場合だけ**割る。
+    ///
+    /// 直通の電車に乗ったままなら、途中駅で区切って検索すると次の便を待つ扱いになり、
+    /// 必ず遅くなる。その場合は割らずに直通のまま残す
+    /// （実測: 萱島→淀屋橋は直通 26 分に対し、途中駅で割ると 29 分になった）。
     func refiningTransit(_ plan: RoutePlan) async throws -> RoutePlan? {
         for (index, segment) in plan.segments.enumerated() {
-            // ユーザーが決めた区間は自動分割の対象にしない。
             guard !plan.isLocked(at: index) else { continue }
             guard segment.mode == .transit,
                   let leg = segment.leg,
-                  leg.expectedTravelTime > policy.transitSplitThreshold,
-                  // 推定で挟んだ地点どうしの区間だけを対象にする（ユーザー指定の区間は割らない）。
-                  segment.from.place.id != segment.to.place.id else { continue }
+                  leg.expectedTravelTime > policy.transitSplitThreshold else { continue }
 
             try Task.checkCancellation()
-            guard let relay = try await findRelayStop(for: segment, budget: leg.expectedTravelTime) else {
-                continue
-            }
+            guard let relay = try await findRelayStop(for: segment,
+                                                      budget: leg.expectedTravelTime,
+                                                      departure: leg.departureDate) else { continue }
 
             var result = plan
             result.insertNode(RouteNode(place: relay.place, kind: .station, isInferred: true),
@@ -287,10 +311,16 @@ public struct RoutePlanner: Sendable {
         let place: Place
         let first: RouteLeg
         let second: RouteLeg
+
+        var totalTime: TimeInterval {
+            first.expectedTravelTime + second.expectedTravelTime
+        }
     }
 
-    /// 区間の中間付近にある停留所を候補に、経路上かどうかを ETA で判定する。
-    func findRelayStop(for segment: RouteSegment, budget: TimeInterval) async throws -> RelaySplit? {
+    /// 中継地点の候補を実際に検索し、直通より遅くならないものだけを返す。
+    func findRelayStop(for segment: RouteSegment,
+                       budget: TimeInterval,
+                       departure: Date?) async throws -> RelaySplit? {
         let from = segment.from.place.coordinate
         let to = segment.to.place.coordinate
         let midpoint = Coordinate(latitude: (from.latitude + to.latitude) / 2,
@@ -305,18 +335,29 @@ public struct RoutePlanner: Sendable {
             try Task.checkCancellation()
             guard let first = try? await routing.leg(from: segment.from.place, to: candidate,
                                                      mode: .transit,
-                                                     timePreference: .now,
-                                                     requestedDate: nil),
-                  let second = try? await routing.leg(from: candidate, to: segment.to.place,
+                                                     timePreference: departure == nil ? .now : .departAt,
+                                                     requestedDate: departure) else { continue }
+            // 2 本目は「1 本目に着いた時刻から」で検索する。待ち時間もここに現れる。
+            let connection = first.arrivalDate
+            guard let second = try? await routing.leg(from: candidate, to: segment.to.place,
                                                       mode: .transit,
-                                                      timePreference: .now,
-                                                      requestedDate: nil) else { continue }
+                                                      timePreference: connection == nil ? .now : .departAt,
+                                                      requestedDate: connection) else { continue }
 
-            let combined = first.expectedTravelTime + second.expectedTravelTime
-            guard combined <= budget * (1 + policy.transitSplitTolerance) else { continue }
+            let combined = actualDuration(first: first, second: second, departure: departure)
+            // 少しでも遅くなるなら割らない。
+            guard combined <= budget else { continue }
             return RelaySplit(place: candidate, first: first, second: second)
         }
         return nil
+    }
+
+    /// 分割後の実際の所要時間。待ち時間を含めるため、着時刻の差で測る。
+    private func actualDuration(first: RouteLeg, second: RouteLeg, departure: Date?) -> TimeInterval {
+        if let start = departure ?? first.departureDate, let end = second.arrivalDate {
+            return end.timeIntervalSince(start)
+        }
+        return first.expectedTravelTime + second.expectedTravelTime
     }
 
     /// 長い徒歩区間を、公共交通を使う形へ置き換えられないか試す。

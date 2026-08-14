@@ -31,6 +31,8 @@ final class FakeSegmentRouting: SegmentRouting, @unchecked Sendable {
     var defaultWalkingSpeed: Double? = 1.2  // m/s
     var transitSpeed: Double = 12.0         // m/s
     private(set) var requests: [String] = []
+    /// 問い合わせた出発時刻（時刻の連鎖を検証するため）。
+    private(set) var requestedDates: [Date] = []
 
     func leg(from: Place,
              to: Place,
@@ -39,8 +41,11 @@ final class FakeSegmentRouting: SegmentRouting, @unchecked Sendable {
              requestedDate: Date?) async throws -> RouteLeg {
         let key = "\(from.name)->\(to.name)#\(mode.rawValue)"
         requests.append(key)
+        if let requestedDate { requestedDates.append(requestedDate) }
         let distance = from.coordinate.distance(to: to.coordinate)
 
+        // MapKit と同じく、公共交通には必ず発着時刻が付く。
+        let base = requestedDate ?? TestDates.make(2026, 8, 18, 9, 0)
         if let requestedDate, let time = timesByDate["\(key)@\(requestedDate.timeIntervalSince1970)"] {
             return RouteLeg(expectedTravelTime: time,
                             departureDate: requestedDate,
@@ -48,16 +53,23 @@ final class FakeSegmentRouting: SegmentRouting, @unchecked Sendable {
                             distance: distance)
         }
         if let time = times[key] {
-            return RouteLeg(expectedTravelTime: time, distance: distance)
+            guard mode == .transit else {
+                return RouteLeg(expectedTravelTime: time, distance: distance)
+            }
+            return RouteLeg(expectedTravelTime: time,
+                            departureDate: base,
+                            arrivalDate: base.addingTimeInterval(time),
+                            distance: distance)
         }
         switch mode {
         case .walking:
             guard let speed = defaultWalkingSpeed else { throw RouteError.noRoutesFound }
             return RouteLeg(expectedTravelTime: distance / speed, distance: distance)
         case .transit:
-            return RouteLeg(expectedTravelTime: distance / transitSpeed,
-                            departureDate: Date(timeIntervalSince1970: 0),
-                            arrivalDate: Date(timeIntervalSince1970: distance / transitSpeed),
+            let duration = distance / transitSpeed
+            return RouteLeg(expectedTravelTime: duration,
+                            departureDate: base,
+                            arrivalDate: base.addingTimeInterval(duration),
                             distance: distance)
         case .driving:
             return RouteLeg(expectedTravelTime: distance / 8.0, distance: distance)
@@ -289,7 +301,12 @@ struct TransitStopClassifierTests {
         ("梅田三丁目バス停", TransitStopKind.bus),
         ("市役所前停留所", TransitStopKind.bus),
         ("Shibuya Bus Stop", TransitStopKind.bus),
-        ("なにかの乗り場", TransitStopKind.unknown)
+        ("広島駅前電停", TransitStopKind.bus),
+        ("新大阪 新幹線のりば", TransitStopKind.train),
+        ("なんば メトロ", TransitStopKind.train),
+        // 鉄道の手がかりが無いものはバス停として扱う（日本では駅名に「駅」が付くため）。
+        ("市役所前", TransitStopKind.bus),
+        ("なにかの乗り場", TransitStopKind.bus)
     ])
     func classification(name: String, expected: TransitStopKind) {
         let place = Place(name: name, latitude: 35.0, longitude: 135.0)
@@ -412,110 +429,54 @@ struct WalkingPaceAndPinTests {
     }
 }
 
-@Suite("公共交通区間の内側を割る（ETA を判定器にする）")
-struct TransitRelaySplitTests {
-    private let stationA = Place(name: "A駅", latitude: 34.7000, longitude: 135.5000)
-    private let relay = Place(name: "B駅", latitude: 34.8000, longitude: 135.6000)
-    private let offRoute = Place(name: "遠回り駅", latitude: 34.7500, longitude: 136.2000)
-    private let stationC = Place(name: "C駅", latitude: 34.9000, longitude: 135.7000)
+@Suite("公共交通区間の分割は遅くならない場合だけ")
+struct TransitSegmentSplitTests {
+    private let stationA = Place(name: "萱島駅", latitude: 34.7594, longitude: 135.6277)
+    private let relay = Place(name: "門真市駅", latitude: 34.7380, longitude: 135.5860)
+    private let stationC = Place(name: "淀屋橋駅", latitude: 34.6913, longitude: 135.5010)
 
     private func node(_ place: Place, _ kind: RouteNode.Kind) -> RouteNode {
         RouteNode(place: place, kind: kind)
     }
 
-    private func plan() -> RoutePlan {
-        RoutePlan(nodes: [node(stationA, .station), node(stationC, .station)], modes: [.transit])
-    }
-
-    @Test("経路上の乗換地点なら割って層を増やす")
-    func splitsAtRelayOnRoute() async throws {
+    /// 直通の電車に乗ったままなら、途中駅で区切ると次の便を待つ扱いになり必ず遅くなる。
+    /// その場合は割らない（実測した萱島→淀屋橋の再現）。
+    @Test("割ると遅くなる場合は直通のまま残す")
+    func keepsTransitSegmentIntactWhenSlower() async throws {
         let stops = FakeStopLocator()
-        // A と C の中点付近に B 駅がある。
         let midpoint = Coordinate(latitude: (stationA.coordinate.latitude + stationC.coordinate.latitude) / 2,
                                   longitude: (stationA.coordinate.longitude + stationC.coordinate.longitude) / 2)
-        stops.table = [(midpoint, [relay])]
+        stops.table = [(midpoint, [relay]), (relay.coordinate, [relay])]
 
         let routing = FakeSegmentRouting()
-        routing.times["A駅->C駅#transit"] = 40 * 60
-        routing.times["A駅->B駅#transit"] = 18 * 60
-        routing.times["B駅->C駅#transit"] = 20 * 60  // 合計 38 分 ≒ 40 分
+        // 直通 26 分。途中で割ると 5 + 24 = 29 分でかえって遅い。
+        routing.times["萱島駅->淀屋橋駅#transit"] = 26 * 60
+        routing.times["萱島駅->門真市駅#transit"] = 5 * 60
+        routing.times["門真市駅->淀屋橋駅#transit"] = 24 * 60
 
         let planner = RoutePlanner(stops: stops, routing: routing)
-        var target = try await planner.computeLegs(plan())
-        target = try await planner.refine(target, depth: 2)
+        var plan = RoutePlan(nodes: [node(stationA, .station), node(stationC, .destination)],
+                             modes: [.transit])
+        plan = try await planner.computeLegs(plan)
+        plan = try await planner.refine(plan, depth: 2)
 
-        #expect(target.nodes.map(\.place.name) == ["A駅", "B駅", "C駅"])
-        #expect(target.modes == [.transit, .transit])
-        // 割った合計が元の所要時間から大きくずれない。
-        let total = try #require(target.totalTravelTime)
-        #expect(abs(total - 38 * 60) < 1)
+        #expect(plan.nodes.map(\.place.name) == ["萱島駅", "淀屋橋駅"])
+        #expect(plan.totalTravelTime == 26 * 60.0, "直通の所要時間をそのまま出す")
     }
 
-    @Test("経路から外れた地点では割らない（合計が大きく増えるため）")
-    func doesNotSplitOffRoute() async throws {
-        let stops = FakeStopLocator()
-        let midpoint = Coordinate(latitude: (stationA.coordinate.latitude + stationC.coordinate.latitude) / 2,
-                                  longitude: (stationA.coordinate.longitude + stationC.coordinate.longitude) / 2)
-        stops.table = [(midpoint, [offRoute])]
-
+    @Test("ユーザーが自分で挟んだ駅は残す")
+    func keepsUserSpecifiedStop() async throws {
         let routing = FakeSegmentRouting()
-        routing.times["A駅->C駅#transit"] = 40 * 60
-        routing.times["A駅->遠回り駅#transit"] = 50 * 60
-        routing.times["遠回り駅->C駅#transit"] = 55 * 60  // 合計 105 分。明らかに経路外。
+        let planner = RoutePlanner(stops: FakeStopLocator(), routing: routing)
 
-        let planner = RoutePlanner(stops: stops, routing: routing)
-        var target = try await planner.computeLegs(plan())
-        target = try await planner.refine(target, depth: 2)
+        var plan = RoutePlan(nodes: [node(stationA, .station),
+                                     node(relay, .waypoint),
+                                     node(stationC, .destination)],
+                             modes: [.transit, .transit])
+        plan = try await planner.computeLegs(plan)
+        plan = try await planner.refine(plan, depth: 2)
 
-        #expect(target.nodes.count == 2, "割らずに 1 区間のまま")
-    }
-
-    @Test("短い公共交通区間はそもそも割らない")
-    func skipsShortTransit() async throws {
-        let stops = FakeStopLocator()
-        let midpoint = Coordinate(latitude: (stationA.coordinate.latitude + stationC.coordinate.latitude) / 2,
-                                  longitude: (stationA.coordinate.longitude + stationC.coordinate.longitude) / 2)
-        stops.table = [(midpoint, [relay])]
-
-        let routing = FakeSegmentRouting()
-        routing.times["A駅->C駅#transit"] = 5 * 60
-
-        let planner = RoutePlanner(stops: stops, routing: routing)
-        var target = try await planner.computeLegs(plan())
-        target = try await planner.refine(target, depth: 2)
-
-        #expect(target.nodes.count == 2)
-    }
-
-    @Test("試す中継地点の数には上限がある（リクエストを撃ちすぎない）")
-    func limitsProbes() async throws {
-        let stops = FakeStopLocator()
-        let midpoint = Coordinate(latitude: (stationA.coordinate.latitude + stationC.coordinate.latitude) / 2,
-                                  longitude: (stationA.coordinate.longitude + stationC.coordinate.longitude) / 2)
-        // 中点付近に候補が 10 個ある。
-        let many = (0..<10).map { index in
-            Place(name: "候補\(index)",
-                  latitude: midpoint.latitude + Double(index) * 0.0001,
-                  longitude: midpoint.longitude)
-        }
-        stops.table = [(midpoint, many)]
-
-        let routing = FakeSegmentRouting()
-        routing.times["A駅->C駅#transit"] = 40 * 60
-        // どの候補も経路外（大幅に増える）にして、全部試させる。
-        for place in many {
-            routing.times["A駅->\(place.name)#transit"] = 60 * 60
-            routing.times["\(place.name)->C駅#transit"] = 60 * 60
-        }
-
-        let planner = RoutePlanner(stops: stops, routing: routing,
-                                   policy: RouteRefinementPolicy(maxProbesPerSegment: 2))
-        var target = try await planner.computeLegs(plan())
-        target = try await planner.refine(target, depth: 1)
-
-        let probes = routing.requests.filter { $0.contains("候補") }
-        #expect(probes.count <= 4, "候補 2 件 × 前後 2 区間まで")
-        #expect(target.nodes.count == 2)
+        #expect(plan.nodes.map(\.place.name) == ["萱島駅", "門真市駅", "淀屋橋駅"])
     }
 }
 
@@ -741,5 +702,91 @@ struct SegmentLockTests {
         #expect(!target.isLocked(at: 2))
         target.applyPreset(.transit)
         #expect(target.modes[2] == .transit)
+    }
+}
+
+@Suite("分割の可否は待ち時間込みで決める")
+struct TransitSplitTimingTests {
+    private let start = Place(name: "A駅", latitude: 34.7594, longitude: 135.6277)
+    private let relay = Place(name: "B駅", latitude: 34.7250, longitude: 135.5640)
+    private let goal = Place(name: "C駅", latitude: 34.6913, longitude: 135.5010)
+
+    private func node(_ place: Place, _ kind: RouteNode.Kind) -> RouteNode {
+        RouteNode(place: place, kind: kind)
+    }
+
+    private func makePlanner(_ routing: FakeSegmentRouting) -> RoutePlanner {
+        let stops = FakeStopLocator()
+        let midpoint = Coordinate(latitude: (start.coordinate.latitude + goal.coordinate.latitude) / 2,
+                                  longitude: (start.coordinate.longitude + goal.coordinate.longitude) / 2)
+        stops.table = [(midpoint, [relay])]
+        return RoutePlanner(stops: stops, routing: routing,
+                            now: { TestDates.make(2026, 8, 18, 9, 0) })
+    }
+
+    private func plan() -> RoutePlan {
+        RoutePlan(nodes: [node(start, .station), node(goal, .destination)], modes: [.transit])
+    }
+
+    @Test("待ち時間を含めても遅くならないなら割る")
+    func splitsWhenNotSlower() async throws {
+        let routing = FakeSegmentRouting()
+        let departure = TestDates.make(2026, 8, 18, 9, 0)
+        // 直通 40 分。乗り継いでも 9:00 発 9:40 着で同じ。
+        routing.times["A駅->C駅#transit"] = 40 * 60
+        routing.timesByDate["A駅->B駅#transit@\(departure.timeIntervalSince1970)"] = 18 * 60
+        let connection = departure.addingTimeInterval(18 * 60)
+        routing.timesByDate["B駅->C駅#transit@\(connection.timeIntervalSince1970)"] = 22 * 60
+
+        let planner = makePlanner(routing)
+        var target = try await planner.computeLegs(plan())
+        target = try await planner.refine(target, depth: 2)
+
+        #expect(target.nodes.map(\.place.name) == ["A駅", "B駅", "C駅"])
+    }
+
+    @Test("待ち時間で遅くなるなら割らない")
+    func keepsDirectWhenWaitingMakesItSlower() async throws {
+        let routing = FakeSegmentRouting()
+        let departure = TestDates.make(2026, 8, 18, 9, 0)
+        routing.times["A駅->C駅#transit"] = 40 * 60
+        // 乗り継ぎ後の便が 10 分待ちで、合計 50 分になる。
+        routing.timesByDate["A駅->B駅#transit@\(departure.timeIntervalSince1970)"] = 18 * 60
+        let connection = departure.addingTimeInterval(18 * 60)
+        routing.timesByDate["B駅->C駅#transit@\(connection.timeIntervalSince1970)"] = 32 * 60
+
+        let planner = makePlanner(routing)
+        var target = try await planner.computeLegs(plan())
+        target = try await planner.refine(target, depth: 2)
+
+        #expect(target.nodes.map(\.place.name) == ["A駅", "C駅"], "直通のまま")
+    }
+}
+
+@Suite("区間の時刻は前の区間に着いてから")
+struct SegmentTimeChainingTests {
+    private let home = Place(name: "自宅", latitude: 34.7500, longitude: 135.5000)
+    private let station = Place(name: "駅", latitude: 34.7460, longitude: 135.5000)
+    private let goal = Place(name: "目的地", latitude: 34.6913, longitude: 135.5010)
+
+    private func node(_ place: Place, _ kind: RouteNode.Kind) -> RouteNode {
+        RouteNode(place: place, kind: kind)
+    }
+
+    @Test("徒歩のあとの電車は、駅に着く時刻から検索する")
+    func chainsDepartureAfterWalking() async throws {
+        let routing = FakeSegmentRouting()
+        routing.times["自宅->駅#walking"] = 7 * 60
+        let planner = RoutePlanner(stops: FakeStopLocator(), routing: routing,
+                                   now: { TestDates.make(2026, 8, 18, 9, 0) })
+
+        let plan = RoutePlan(nodes: [node(home, .origin), node(station, .station), node(goal, .destination)],
+                             modes: [.walking, .transit])
+        _ = try await planner.computeLegs(plan)
+
+        // 2 区間目は「今から」ではなく「7 分後から」で問い合わせている。
+        let expected = TestDates.make(2026, 8, 18, 9, 7)
+        #expect(routing.requestedDates.contains(expected),
+                "駅に着く時刻から検索していない: \(routing.requestedDates)")
     }
 }

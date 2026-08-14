@@ -90,3 +90,6 @@
 "route.pickDeparture" = "选择出发时刻";
 "route.close" = "关闭路线";
 "common.done" = "完成";
+"time.departNow" = "现在出发";
+"time.departAt" = "%@ 出发";
+"time.arriveAt" = "%@ 到达";

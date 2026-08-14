@@ -90,3 +90,6 @@
 "route.pickDeparture" = "เลือกเวลาออกเดินทาง";
 "route.close" = "ปิดเส้นทาง";
 "common.done" = "เสร็จ";
+"time.departNow" = "ออกตอนนี้";
+"time.departAt" = "ออก %@";
+"time.arriveAt" = "ถึง %@";

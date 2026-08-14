@@ -90,3 +90,6 @@
 "route.pickDeparture" = "出発時刻を選ぶ";
 "route.close" = "経路を閉じる";
 "common.done" = "完了";
+"time.departNow" = "いま出発";
+"time.departAt" = "%@ に出発";
+"time.arriveAt" = "%@ に到着";

@@ -90,3 +90,6 @@
 "route.pickDeparture" = "Choose departure";
 "route.close" = "Close route";
 "common.done" = "Done";
+"time.departNow" = "Leave now";
+"time.departAt" = "Leave at %@";
+"time.arriveAt" = "Arrive by %@";
