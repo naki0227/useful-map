@@ -51,10 +51,10 @@ public final class MapHomeViewModel: ObservableObject {
             locationMessage = nil
         } catch LocationError.denied {
             authorizationStatus = locationService.authorizationStatus
-            locationMessage = "位置情報が許可されていません。出発地を検索して指定できます"
+            locationMessage = L10n.string("map.locationDenied")
         } catch {
             authorizationStatus = locationService.authorizationStatus
-            locationMessage = "現在地を取得できませんでした"
+            locationMessage = L10n.string("map.locationUnavailable")
         }
     }
 

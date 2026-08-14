@@ -16,7 +16,7 @@ public enum RouteEndpoint: Hashable, Codable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .currentLocation: return "現在地"
+        case .currentLocation: return L10n.string("endpoint.currentLocation")
         case let .place(place): return place.displayName
         }
     }
@@ -32,9 +32,9 @@ public enum TimePreference: String, Codable, CaseIterable, Identifiable, Sendabl
 
     public var displayName: String {
         switch self {
-        case .now: return "現在"
-        case .departAt: return "出発時刻"
-        case .arriveBy: return "到着時刻"
+        case .now: return L10n.string("time.now")
+        case .departAt: return L10n.string("time.departAt")
+        case .arriveBy: return L10n.string("time.arriveBy")
         }
     }
 

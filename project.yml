@@ -33,22 +33,36 @@ targets:
         product: Data
       - package: UsefulMapKit
         product: Domain
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Useful Map
+        CFBundleDevelopmentRegion: ja
+        # 対応言語。地域限定の言語しか話さない利用者を主な対象にしている。
+        CFBundleLocalizations: [ja, en, zh-Hans, ko, th]
+        # 現在地を出発地にするためだけに使う。専用 Backend へは送信しない。
+        NSLocationWhenInUseUsageDescription: "現在地を出発地として経路を比較するために使用します。"
+        # 標準の HTTPS 以外の暗号化は使用していない。
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UIStatusBarStyle: UIStatusBarStyleDefault
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.usefulmap.UsefulMap
         PRODUCT_NAME: UsefulMap
-        GENERATE_INFOPLIST_FILE: YES
+        GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CURRENT_PROJECT_VERSION: "1"
         MARKETING_VERSION: "0.1.0"
         TARGETED_DEVICE_FAMILY: "1,2"
-        INFOPLIST_KEY_CFBundleDisplayName: Useful Map
-        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "現在地を出発地として経路を比較するために使用します。"
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleDefault
 
   UsefulMapUITests:
     type: bundle.ui-testing

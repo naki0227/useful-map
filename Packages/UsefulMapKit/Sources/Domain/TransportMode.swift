@@ -11,9 +11,9 @@ public enum TransportMode: String, CaseIterable, Codable, Identifiable, Sendable
 
     public var displayName: String {
         switch self {
-        case .transit: return "公共交通"
-        case .walking: return "徒歩"
-        case .driving: return "車"
+        case .transit: return L10n.string("transport.transit")
+        case .walking: return L10n.string("transport.walking")
+        case .driving: return L10n.string("transport.driving")
         }
     }
 

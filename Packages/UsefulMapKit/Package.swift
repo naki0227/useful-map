@@ -22,7 +22,7 @@ let package = Package(
     ],
     targets: [
         // 純粋なモデルとポリシー。Foundation 以外に依存しない。
-        .target(name: "Domain"),
+        .target(name: "Domain", resources: [.process("Resources")]),
 
         // 永続化と外部 URL 契約のアダプタ。UI にも MapKit にも依存しない。
         .target(name: "Data", dependencies: ["Domain"]),
@@ -31,7 +31,7 @@ let package = Package(
         .target(name: "Infrastructure", dependencies: ["Domain", "Data"]),
 
         // SwiftUI 画面と ViewModel。Domain のプロトコルにのみ依存する。
-        .target(name: "Presentation", dependencies: ["Domain"]),
+        .target(name: "Presentation", dependencies: ["Domain"], resources: [.process("Resources")]),
 
         .testTarget(name: "DomainTests", dependencies: ["Domain"]),
         .testTarget(name: "DataTests", dependencies: ["Data", "Domain"]),

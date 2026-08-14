@@ -101,7 +101,9 @@ struct MapKitBridgeTests {
         for error in errors {
             #expect(!error.localizedMessage.isEmpty)
         }
-        #expect(RouteError.unsupportedInRegion(.transit).localizedMessage.contains("公共交通"))
+        // 文言は表示ロケールで変わるため、モード名が差し込まれていることだけを見る。
+        #expect(RouteError.unsupportedInRegion(.transit).localizedMessage
+            .contains(TransportMode.transit.displayName))
     }
 }
 

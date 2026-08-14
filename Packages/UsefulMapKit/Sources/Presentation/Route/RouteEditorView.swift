@@ -19,9 +19,9 @@ public struct RouteEditorView: View {
 
         var title: String {
             switch self {
-            case .origin: return "出発地"
-            case .destination: return "目的地"
-            case .waypoint: return "経由地"
+            case .origin: return L10n.string("editor.origin")
+            case .destination: return L10n.string("editor.destination")
+            case .waypoint: return L10n.string("editor.waypoint")
             }
         }
     }
@@ -40,10 +40,10 @@ public struct RouteEditorView: View {
                 modeSection
                 timeSection
             }
-            .navigationTitle("経路を編集")
+            .navigationTitle(L10n.string("editor.title"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") { dismiss() }
+                    Button(L10n.string("editor.close")) { dismiss() }
                         .accessibilityIdentifier(A11y.closeEditorButton)
                 }
             }
@@ -56,41 +56,41 @@ public struct RouteEditorView: View {
     }
 
     private var endpointsSection: some View {
-        Section("出発地・目的地") {
+        Section(L10n.string("editor.endpoints")) {
             Button {
                 searchTarget = .origin
             } label: {
-                LabeledContent("出発地", value: viewModel.query.origin.displayName)
+                LabeledContent(L10n.string("editor.origin"), value: viewModel.query.origin.displayName)
             }
             .accessibilityIdentifier("routeEditor.origin")
 
             Button {
                 searchTarget = .destination
             } label: {
-                LabeledContent("目的地", value: viewModel.query.destination.displayName)
+                LabeledContent(L10n.string("editor.destination"), value: viewModel.query.destination.displayName)
             }
             .accessibilityIdentifier("routeEditor.destination")
 
             Button {
                 viewModel.setOrigin(.currentLocation)
             } label: {
-                Label("出発地を現在地にする", systemImage: "location.circle")
+                Label(L10n.string("editor.useCurrentLocation"), systemImage: "location.circle")
             }
             .accessibilityIdentifier("routeEditor.useCurrentLocation")
 
             Button {
                 viewModel.swapEndpoints()
             } label: {
-                Label("出発地と目的地を入れ替える", systemImage: "arrow.up.arrow.down")
+                Label(L10n.string("editor.swap"), systemImage: "arrow.up.arrow.down")
             }
             .accessibilityIdentifier(A11y.swapButton)
         }
     }
 
     private var waypointsSection: some View {
-        Section("経由地") {
+        Section(L10n.string("editor.waypoint")) {
             if viewModel.query.waypoints.isEmpty {
-                Text("経由地なし")
+                Text(l10n: "editor.noWaypoints")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(viewModel.query.waypoints) { waypoint in
@@ -108,15 +108,15 @@ public struct RouteEditorView: View {
             Button {
                 searchTarget = .waypoint
             } label: {
-                Label("経由地を追加", systemImage: "plus")
+                Label(L10n.string("editor.addWaypoint"), systemImage: "plus")
             }
             .accessibilityIdentifier(A11y.addWaypointButton)
         }
     }
 
     private var modeSection: some View {
-        Section("移動手段") {
-            Picker("移動手段", selection: Binding(
+        Section(L10n.string("editor.mode")) {
+            Picker(L10n.string("editor.mode"), selection: Binding(
                 get: { viewModel.modeFilter },
                 set: { viewModel.modeFilter = $0 }
             )) {
@@ -130,8 +130,8 @@ public struct RouteEditorView: View {
     }
 
     private var timeSection: some View {
-        Section("時刻条件") {
-            Picker("条件", selection: Binding(
+        Section(L10n.string("editor.time")) {
+            Picker(L10n.string("editor.timeCondition"), selection: Binding(
                 get: { viewModel.query.timePreference },
                 set: { viewModel.setTimePreference($0, date: pendingDate) }
             )) {
@@ -143,7 +143,7 @@ public struct RouteEditorView: View {
             .accessibilityIdentifier("routeEditor.timePreference")
 
             if viewModel.query.timePreference.requiresDate {
-                DatePicker("日時", selection: Binding(
+                DatePicker(L10n.string("editor.dateTime"), selection: Binding(
                     get: { viewModel.query.requestedDate ?? pendingDate },
                     set: { newValue in
                         pendingDate = newValue

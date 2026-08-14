@@ -10,9 +10,9 @@ public struct SavedPlace: Identifiable, Hashable, Codable, Sendable {
 
         public var displayName: String {
             switch self {
-            case .home: return "自宅"
-            case .school: return "学校"
-            case .other: return "保存済み"
+            case .home: return L10n.string("label.home")
+            case .school: return L10n.string("label.school")
+            case .other: return L10n.string("label.other")
             }
         }
 

@@ -65,7 +65,7 @@ struct RouteCompareViewModelTests {
         await viewModel.load().value
 
         #expect(service.receivedOrigins.first?.coordinate == TestFixtures.currentLocation)
-        #expect(service.receivedOrigins.first?.name == "現在地")
+        #expect(service.receivedOrigins.first?.name == RouteEndpoint.currentLocation.displayName)
     }
 
     @Test("地点出発なら位置情報を使わない")
@@ -95,7 +95,7 @@ struct RouteCompareViewModelTests {
         await viewModel.load().value
 
         #expect(viewModel.options.isEmpty)
-        #expect(viewModel.errorMessage?.contains("出発地") == true)
+        #expect(viewModel.errorMessage == L10n.string("route.error.location"))
     }
 
     @Test("候補が 0 件なら「利用可能な経路なし」を表示する")
@@ -142,7 +142,8 @@ struct RouteCompareViewModelTests {
         await viewModel.load().value
 
         #expect(viewModel.options.isEmpty)
-        #expect(viewModel.errorMessage?.contains("公共交通") == true)
+        #expect(viewModel.errorMessage
+            == RouteError.unsupportedInRegion(.transit).localizedMessage)
     }
 
     @Test("モードを切り替えると条件も更新して取り直す")
@@ -259,7 +260,7 @@ struct RouteCompareViewModelTests {
 
         #expect(viewModel.lastOpenOutcome == .failed)
         #expect(viewModel.lastOpenedURL == nil)
-        #expect(viewModel.errorMessage == "Google Maps を開けませんでした")
+        #expect(viewModel.errorMessage == L10n.string("route.open.failed"))
     }
 
     @Test("徒歩・車の候補では外部詳細を開かない")
@@ -358,7 +359,7 @@ struct RouteCompareViewModelTests {
     func title() {
         let viewModel = RouteCompareViewModel(query: makeQuery(),
                                               dependencies: TestEnvironment.make())
-        #expect(viewModel.title == "現在地 → 東京駅")
+        #expect(viewModel.title == "\(RouteEndpoint.currentLocation.displayName) → 東京駅")
     }
 
     @Test("ModeFilter は 最適 + 全モードを持つ")

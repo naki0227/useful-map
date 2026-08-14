@@ -30,7 +30,7 @@ public struct SearchView: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("目的地を検索", text: Binding(
+                TextField(L10n.string("search.placeholder"), text: Binding(
                     get: { viewModel.queryText },
                     set: { viewModel.updateQuery($0) }
                 ))
@@ -47,14 +47,14 @@ public struct SearchView: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("入力を消去")
+                    .accessibilityLabel(L10n.string("search.clear"))
                 }
             }
             .padding(.vertical, 10)
             .padding(.horizontal, 12)
             .background(Color.secondary.opacity(0.12), in: Capsule())
 
-            Button("キャンセル") { dismiss() }
+            Button(L10n.string("search.cancel")) { dismiss() }
                 .accessibilityIdentifier(A11y.searchCancel)
         }
         .padding(16)
@@ -63,20 +63,22 @@ public struct SearchView: View {
     @ViewBuilder
     private var content: some View {
         if viewModel.isSearching && viewModel.results.isEmpty {
-            ProgressView("検索中")
+            ProgressView(L10n.string("search.searching"))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityIdentifier("search.progress")
         } else if let message = viewModel.errorMessage {
-            ContentUnavailableView("検索できませんでした", systemImage: "exclamationmark.triangle", description: Text(message))
+            ContentUnavailableView(L10n.string("search.error.title"),
+                                   systemImage: "exclamationmark.triangle",
+                                   description: Text(message))
                 .accessibilityIdentifier("search.error")
         } else if viewModel.showsEmptyState {
-            ContentUnavailableView("検索結果なし",
+            ContentUnavailableView(L10n.string("search.empty.title"),
                                    systemImage: "magnifyingglass",
-                                   description: Text("別のキーワードで試してください。"))
+                                   description: Text(l10n: "search.empty.body"))
                 .accessibilityIdentifier(A11y.searchEmpty)
         } else {
             List {
-                Section("検索結果") {
+                Section(L10n.string("search.results")) {
                     ForEach(Array(viewModel.results.enumerated()), id: \.element.id) { index, place in
                         Button {
                             viewModel.select(place)

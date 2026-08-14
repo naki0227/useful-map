@@ -17,10 +17,10 @@ public struct SavedView: View {
                 routesSection
                 searchesSection
             }
-            .navigationTitle("保存済みと履歴")
+            .navigationTitle(L10n.string("saved.title"))
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("履歴を消去") { viewModel.clearHistory() }
+                    Button(L10n.string("saved.clearHistory")) { viewModel.clearHistory() }
                         .accessibilityIdentifier("saved.clearHistory")
                         .disabled(viewModel.recentRoutes.isEmpty && viewModel.recentSearches.isEmpty)
                 }
@@ -31,9 +31,9 @@ public struct SavedView: View {
 
     @ViewBuilder
     private var savedSection: some View {
-        Section("保存済み") {
+        Section(L10n.string("saved.section.places")) {
             if viewModel.savedPlaces.isEmpty {
-                Text("保存した場所はありません")
+                Text(l10n: "saved.empty")
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("saved.empty")
             } else {
@@ -89,7 +89,7 @@ public struct SavedView: View {
     /// ラベルの付け替えと削除（モックの「・・・」メニュー）。
     private func labelMenu(for saved: SavedPlace, index: Int) -> some View {
         Menu {
-            Picker("ラベル", selection: Binding(
+            Picker(L10n.string("saved.label"), selection: Binding(
                 get: { saved.label },
                 set: { viewModel.setLabel($0, for: saved.place) }
             )) {
@@ -100,7 +100,7 @@ public struct SavedView: View {
                 }
             }
             Divider()
-            Button("保存を解除", systemImage: "trash", role: .destructive) {
+            Button(L10n.string("saved.remove"), systemImage: "trash", role: .destructive) {
                 viewModel.remove(id: saved.id)
             }
         } label: {
@@ -111,14 +111,14 @@ public struct SavedView: View {
                 .contentShape(Rectangle())
         }
         .accessibilityIdentifier(A11y.savedPlaceMenu(index))
-        .accessibilityLabel("\(saved.place.displayName) の設定")
+        .accessibilityLabel(L10n.string("saved.menu", saved.place.displayName))
     }
 
     @ViewBuilder
     private var routesSection: some View {
-        Section("最近の経路") {
+        Section(L10n.string("saved.section.routes")) {
             if viewModel.recentRoutes.isEmpty {
-                Text("履歴はありません")
+                Text(l10n: "saved.noHistory")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(Array(viewModel.recentRoutes.enumerated()), id: \.element.id) { index, route in
@@ -150,7 +150,7 @@ public struct SavedView: View {
     @ViewBuilder
     private var searchesSection: some View {
         if !viewModel.recentSearches.isEmpty {
-            Section("最近の検索") {
+            Section(L10n.string("saved.section.searches")) {
                 ForEach(Array(viewModel.recentSearches.enumerated()), id: \.element.id) { index, recent in
                     Button {
                         router.selectedTab = .map

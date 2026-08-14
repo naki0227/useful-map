@@ -1,0 +1,14 @@
+/* Useful Map - Domain */
+"transport.transit" = "公共交通";
+"transport.walking" = "步行";
+"transport.driving" = "驾车";
+"time.now" = "现在";
+"time.departAt" = "出发时刻";
+"time.arriveBy" = "到达时刻";
+"endpoint.currentLocation" = "当前位置";
+"label.home" = "住家";
+"label.school" = "学校";
+"label.other" = "已收藏";
+"route.error.noRoutes" = "未找到可用的路线";
+"route.error.unsupported" = "该地区无法获取%@路线";
+"route.error.cancelled" = "已取消搜索";

@@ -50,7 +50,7 @@ public struct RouteCompareView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(A11y.editRouteButton)
-        .accessibilityLabel("経路の条件を編集")
+        .accessibilityLabel(L10n.string("route.edit"))
         .accessibilityValue(viewModel.title)
     }
 
@@ -114,17 +114,17 @@ public struct RouteCompareView: View {
     @ViewBuilder
     private var results: some View {
         if viewModel.isLoading && viewModel.options.isEmpty {
-            ProgressView("経路を取得中")
+            ProgressView(L10n.string("route.loading"))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let message = viewModel.errorMessage, viewModel.options.isEmpty {
-            ContentUnavailableView("経路を取得できません",
+            ContentUnavailableView(L10n.string("route.error.title"),
                                    systemImage: "exclamationmark.triangle",
                                    description: Text(message))
                 .accessibilityIdentifier(A11y.routeError)
         } else if viewModel.showsEmptyState {
-            ContentUnavailableView("利用可能な経路なし",
+            ContentUnavailableView(L10n.string("route.empty.title"),
                                    systemImage: "point.topleft.down.to.point.bottomright.curvepath",
-                                   description: Text("条件を変えて再検索してください。"))
+                                   description: Text(l10n: "route.empty.body"))
                 .accessibilityIdentifier(A11y.routeEmpty)
         } else {
             ScrollView {
@@ -165,14 +165,14 @@ public struct RouteCompareView: View {
 
     private func statusText(for outcome: DetailOpenOutcome) -> String {
         switch outcome {
-        case .openedPrimary: return "Google Maps を時刻付きリンクで開きました"
-        case .openedFallback: return "Google Maps を公式リンクで開きました（時刻条件は保証されません）"
-        case .failed: return "Google Maps を開けませんでした"
+        case .openedPrimary: return L10n.string("route.open.primary")
+        case .openedFallback: return L10n.string("route.open.fallback")
+        case .failed: return L10n.string("route.open.failed")
         }
     }
 
     private var footnote: some View {
-        Text("所要時間は交通状況により前後する場合があります。運賃・乗換の詳細は Google Maps で確認してください。")
+        Text(l10n: "route.footnote")
             .font(.caption)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -200,7 +200,7 @@ struct RouteOptionCard: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 if isRecommended {
-                    Text("おすすめ")
+                    Text(l10n: "route.recommended")
                         .font(.caption.bold())
                         .padding(.vertical, 4)
                         .padding(.horizontal, 8)
@@ -223,12 +223,12 @@ struct RouteOptionCard: View {
                 Spacer()
                 if option.supportsExternalDetail {
                     Button(action: onDetail) {
-                        Label("詳細", systemImage: "arrow.up.forward.square")
+                        Label(L10n.string("route.detail"), systemImage: "arrow.up.forward.square")
                             .font(.subheadline)
                     }
                     .buttonStyle(.bordered)
                     .accessibilityIdentifier(A11y.detailButton(index))
-                    .accessibilityHint("Google Maps で運賃や乗換を確認します")
+                    .accessibilityHint(L10n.string("route.detail.hint"))
                 }
             }
         }

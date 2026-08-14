@@ -1,0 +1,3 @@
+/* 位置情報の用途（App Store 審査 5.1.1） */
+"NSLocationWhenInUseUsageDescription" = "現在地を出発地として経路を比較するために使用します。位置情報が端末の外へ送信されることはありません。";
+"CFBundleDisplayName" = "Useful Map";

@@ -1,0 +1,3 @@
+/* 位置情報の用途（App Store 審査 5.1.1） */
+"NSLocationWhenInUseUsageDescription" = "Used to compare routes from your current location. Your location never leaves your device.";
+"CFBundleDisplayName" = "Useful Map";

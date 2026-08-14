@@ -20,7 +20,7 @@ public final class RouteCompareViewModel: ObservableObject {
 
         public var displayName: String {
             switch self {
-            case .all: return "最適"
+            case .all: return L10n.string("route.filter.best")
             case let .mode(mode): return mode.displayName
             }
         }
@@ -121,7 +121,7 @@ public final class RouteCompareViewModel: ObservableObject {
             guard currentGeneration == generation else { return }
             isLoading = false
             options = []
-            errorMessage = "現在地を取得できませんでした。出発地を検索して指定してください"
+            errorMessage = L10n.string("route.error.location")
             return
         }
 
@@ -166,7 +166,7 @@ public final class RouteCompareViewModel: ObservableObject {
             return place
         case .currentLocation:
             let coordinate = try await locationService.currentCoordinate()
-            return Place(name: "現在地", coordinate: coordinate)
+            return Place(name: RouteEndpoint.currentLocation.displayName, coordinate: coordinate)
         }
     }
 
@@ -184,7 +184,7 @@ public final class RouteCompareViewModel: ObservableObject {
             lastOpenedURL = detailLinking.officialURL(for: option)?.absoluteString
         case .failed:
             lastOpenedURL = nil
-            errorMessage = "Google Maps を開けませんでした"
+            errorMessage = L10n.string("route.open.failed")
         }
     }
 

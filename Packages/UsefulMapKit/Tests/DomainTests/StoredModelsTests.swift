@@ -20,8 +20,9 @@ struct StoredModelsTests {
             #expect(!label.displayName.isEmpty)
             #expect(!label.symbolName.isEmpty)
         }
-        #expect(SavedPlace.Label.home.displayName == "自宅")
-        #expect(SavedPlace.Label.school.displayName == "学校")
+        // 具体的な文字列は表示ロケールで変わるため、区別可能であることだけを保証する。
+        let names = Set(SavedPlace.Label.allCases.map(\.displayName))
+        #expect(names.count == SavedPlace.Label.allCases.count)
     }
 
     @Test("RecentRoute は 出発地・目的地・モードで同一視される")

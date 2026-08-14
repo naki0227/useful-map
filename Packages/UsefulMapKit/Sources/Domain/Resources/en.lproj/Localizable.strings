@@ -1,0 +1,14 @@
+/* Useful Map - Domain */
+"transport.transit" = "Transit";
+"transport.walking" = "Walking";
+"transport.driving" = "Driving";
+"time.now" = "Now";
+"time.departAt" = "Depart at";
+"time.arriveBy" = "Arrive by";
+"endpoint.currentLocation" = "Current Location";
+"label.home" = "Home";
+"label.school" = "School";
+"label.other" = "Saved";
+"route.error.noRoutes" = "No available routes were found";
+"route.error.unsupported" = "%@ routes aren't available in this area";
+"route.error.cancelled" = "Search cancelled";

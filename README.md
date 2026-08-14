@@ -46,6 +46,24 @@ contract-watch/                     Playwright による外部 URL 仕様の契�
 保存地点には `自宅 / 学校 / 保存だけする` のラベルを付けられます（S03 の「保存」でラベルを選択、
 S06 の「・・・」メニューで付け替え・解除）。ラベル付きの地点は地図ホーム上部のチップに並びます。
 
+## 対応言語
+
+日本語・英語・簡体字中国語・韓国語・タイ語。端末の言語設定に従って自動的に切り替わります。
+
+日本語しか用意しないと、日本国内を移動する訪日・在日の利用者のうち
+「その言語しか読めない層」が使えないため、この 4 言語を追加しています。
+
+| 対象 | 場所 |
+|---|---|
+| 画面の文言 | `Packages/UsefulMapKit/Sources/Presentation/Resources/*.lproj/Localizable.strings` |
+| モデルの表示名・エラー文言 | `Packages/UsefulMapKit/Sources/Domain/Resources/*.lproj/Localizable.strings` |
+| 位置情報の用途（権限ダイアログ） | `App/Resources/*.lproj/InfoPlist.strings` |
+
+日付・時刻・数値・距離は Foundation のロケール対応フォーマッタに任せているため、
+12 時間制と 24 時間制の違いなどは自動で吸収されます。
+`LocalizationTests` が「未翻訳のキー」「空の翻訳」「書式指定子の数の不一致」
+「日本語のまま残っている行」を検出します。
+
 ## アプリアイコン
 
 `App/Assets.xcassets/AppIcon.appiconset/` に 1024×1024 の PNG を置くと反映されます。
@@ -70,7 +88,7 @@ open UsefulMap.xcodeproj
 ## テスト
 
 ```bash
-make unit          # Swift Testing 188 件（単体 + アーキテクチャ）
+make unit          # Swift Testing 195 件（単体 + アーキテクチャ + ローカライズ）
 make contract-unit # 契約監視の単体テスト 19 件（ネットワーク不要）
 make e2e           # XCUITest 7 本（シミュレータ内で完結）
 make all           # PR 前の一式（+ SwiftLint, jscpd）
@@ -82,6 +100,7 @@ make all           # PR 前の一式（+ SwiftLint, jscpd）
 |---|---|---|
 | 単体（Swift Testing） | `Packages/UsefulMapKit/Tests/{Domain,Data,Infrastructure,Presentation}Tests` | モデル、URL 生成、時刻変換、保存、ViewModel の状態遷移・キャンセル・エラー |
 | アーキテクチャ | `Tests/ArchitectureTests` | 依存方向、SDK 範囲、内部 URL 形式の隔離、ViewModel の MainActor |
+| ローカライズ | `PresentationTests/LocalizationTests` | 5 言語の翻訳漏れ・書式指定子・ロケール解決 |
 | 契約（Swift ↔ 監視） | `DataTests/URLFormatContractTests` | Swift の生成結果と `contract-watch/format.json` の一致 |
 | E2E（XCUITest） | `Tests/UITests` | 検索→比較、モード切替、時刻付き遷移、fallback、0 件、保存・履歴、ラベル付け |
 | 契約監視（Playwright） | `contract-watch/tests` | 実際に Google Maps を開いて条件が保たれるか |
@@ -134,6 +153,11 @@ FAIL → 診断 Artifact（screenshot / trace / HTML report / 最終 URL）
 | jscpd | コード重複検出 | `make dup` |
 
 SwiftLint にはカスタムルール `no_google_url_outside_builder`（内部 URL 形式の漏れ検出）を入れています。
+
+## App Store 提出
+
+`docs/app-store-submission.md` に、アプリ名の ASO 方針、5 言語の説明文・キーワード、
+審査メモ、プライバシーポリシー、スクリーンショット要件、チェックリストをまとめてあります。
 
 ## MVP でやらないこと
 

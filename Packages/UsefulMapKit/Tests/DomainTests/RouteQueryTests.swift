@@ -121,8 +121,9 @@ struct RouteQueryTests {
 
     @Test("RouteEndpoint の表示名")
     func endpointDisplayName() {
-        #expect(RouteEndpoint.currentLocation.displayName == "現在地")
+        // 地点名は翻訳せずそのまま出す。現在地はロケールに応じて訳される。
         #expect(RouteEndpoint.place(tokyo).displayName == "東京駅")
+        #expect(!RouteEndpoint.currentLocation.displayName.isEmpty)
         #expect(RouteEndpoint.currentLocation.place == nil)
         #expect(RouteEndpoint.place(tokyo).place == tokyo)
         #expect(RouteEndpoint.currentLocation.isCurrentLocation)

@@ -28,11 +28,11 @@ public enum RouteError: Error, Equatable, Sendable {
     public var localizedMessage: String {
         switch self {
         case .noRoutesFound:
-            return "利用可能な経路が見つかりませんでした"
+            return L10n.string("route.error.noRoutes")
         case let .unsupportedInRegion(mode):
-            return "この地域では\(mode.displayName)の経路を取得できません"
+            return L10n.string("route.error.unsupported", mode.displayName)
         case .cancelled:
-            return "検索を中断しました"
+            return L10n.string("route.error.cancelled")
         case let .failed(message):
             return message
         }

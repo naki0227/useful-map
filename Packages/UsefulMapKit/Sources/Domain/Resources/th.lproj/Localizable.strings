@@ -1,0 +1,14 @@
+/* Useful Map - Domain */
+"transport.transit" = "ขนส่งสาธารณะ";
+"transport.walking" = "เดิน";
+"transport.driving" = "ขับรถ";
+"time.now" = "ตอนนี้";
+"time.departAt" = "เวลาออกเดินทาง";
+"time.arriveBy" = "เวลาถึง";
+"endpoint.currentLocation" = "ตำแหน่งปัจจุบัน";
+"label.home" = "บ้าน";
+"label.school" = "โรงเรียน";
+"label.other" = "บันทึกแล้ว";
+"route.error.noRoutes" = "ไม่พบเส้นทางที่ใช้ได้";
+"route.error.unsupported" = "ไม่สามารถหาเส้นทาง%@ในพื้นที่นี้ได้";
+"route.error.cancelled" = "ยกเลิกการค้นหาแล้ว";

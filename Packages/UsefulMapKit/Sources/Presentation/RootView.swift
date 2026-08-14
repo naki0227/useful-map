@@ -13,15 +13,15 @@ public struct RootView: View {
     public var body: some View {
         TabView(selection: $router.selectedTab) {
             MapHomeView(dependencies: dependencies)
-                .tabItem { Label(AppRouter.Tab.map.displayName, systemImage: AppRouter.Tab.map.symbolName) }
+                .tabItem { Label(L10n.string("tab.map"), systemImage: AppRouter.Tab.map.symbolName) }
                 .tag(AppRouter.Tab.map)
 
             RouteTabView(dependencies: dependencies)
-                .tabItem { Label(AppRouter.Tab.route.displayName, systemImage: AppRouter.Tab.route.symbolName) }
+                .tabItem { Label(L10n.string("tab.route"), systemImage: AppRouter.Tab.route.symbolName) }
                 .tag(AppRouter.Tab.route)
 
             SavedView(dependencies: dependencies)
-                .tabItem { Label(AppRouter.Tab.saved.displayName, systemImage: AppRouter.Tab.saved.symbolName) }
+                .tabItem { Label(L10n.string("tab.saved"), systemImage: AppRouter.Tab.saved.symbolName) }
                 .tag(AppRouter.Tab.saved)
         }
         .environmentObject(router)
@@ -41,11 +41,11 @@ struct RouteTabView: View {
                     .id(query)
             } else {
                 ContentUnavailableView {
-                    Label("経路がありません", systemImage: "arrow.triangle.swap")
+                    Label(L10n.string("route.none.title"), systemImage: "arrow.triangle.swap")
                 } description: {
-                    Text("目的地を検索して「経路」を押すと、移動手段ごとの所要時間を比較できます。")
+                    Text(l10n: "route.none.body")
                 } actions: {
-                    Button("地図から検索") { router.selectedTab = .map }
+                    Button(L10n.string("route.none.action")) { router.selectedTab = .map }
                         .buttonStyle(.borderedProminent)
                 }
             }

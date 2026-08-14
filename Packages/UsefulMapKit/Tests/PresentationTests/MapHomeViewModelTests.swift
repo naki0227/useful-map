@@ -47,7 +47,8 @@ struct MapHomeViewModelTests {
 
         #expect(viewModel.currentCoordinate == nil)
         #expect(viewModel.needsManualOrigin)
-        #expect(viewModel.locationMessage?.contains("出発地") == true)
+        // 文言はロケールで変わるので、案内が出ていることと拒否状態を確認する。
+        #expect(viewModel.locationMessage == L10n.string("map.locationDenied"))
     }
 
     @Test("取得失敗時はエラーメッセージを出すが、権限拒否とは区別する")
@@ -57,7 +58,7 @@ struct MapHomeViewModelTests {
 
         await viewModel.refreshLocation()
 
-        #expect(viewModel.locationMessage == "現在地を取得できませんでした")
+        #expect(viewModel.locationMessage == L10n.string("map.locationUnavailable"))
         #expect(!viewModel.needsManualOrigin)
     }
 

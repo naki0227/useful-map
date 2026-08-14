@@ -1,0 +1,14 @@
+/* Useful Map - Domain */
+"transport.transit" = "公共交通";
+"transport.walking" = "徒歩";
+"transport.driving" = "車";
+"time.now" = "現在";
+"time.departAt" = "出発時刻";
+"time.arriveBy" = "到着時刻";
+"endpoint.currentLocation" = "現在地";
+"label.home" = "自宅";
+"label.school" = "学校";
+"label.other" = "保存済み";
+"route.error.noRoutes" = "利用可能な経路が見つかりませんでした";
+"route.error.unsupported" = "この地域では%@の経路を取得できません";
+"route.error.cancelled" = "検索を中断しました";

@@ -1,0 +1,14 @@
+/* Useful Map - Domain */
+"transport.transit" = "대중교통";
+"transport.walking" = "도보";
+"transport.driving" = "자동차";
+"time.now" = "현재";
+"time.departAt" = "출발 시각";
+"time.arriveBy" = "도착 시각";
+"endpoint.currentLocation" = "현재 위치";
+"label.home" = "집";
+"label.school" = "학교";
+"label.other" = "저장됨";
+"route.error.noRoutes" = "이용 가능한 경로를 찾을 수 없습니다";
+"route.error.unsupported" = "이 지역에서는 %@ 경로를 가져올 수 없습니다";
+"route.error.cancelled" = "검색을 취소했습니다";

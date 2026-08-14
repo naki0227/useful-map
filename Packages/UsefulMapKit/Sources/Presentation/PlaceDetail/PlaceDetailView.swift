@@ -49,7 +49,7 @@ public struct PlaceDetailView: View {
                     .background(Color.secondary.opacity(0.12), in: Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("閉じる")
+            .accessibilityLabel(L10n.string("placeDetail.close"))
         }
     }
 
@@ -60,7 +60,7 @@ public struct PlaceDetailView: View {
                                             destination: place,
                                             transportMode: .transit))
             } label: {
-                Label("経路", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                Label(L10n.string("placeDetail.route"), systemImage: "arrow.triangle.turn.up.right.diamond.fill")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             }
@@ -81,21 +81,25 @@ public struct PlaceDetailView: View {
             }
             .buttonStyle(.bordered)
             .accessibilityIdentifier(A11y.saveButton)
-            .confirmationDialog("この場所を保存", isPresented: $isLabelPickerPresented, titleVisibility: .visible) {
+            .confirmationDialog(L10n.string("placeDetail.saveTitle"),
+                                isPresented: $isLabelPickerPresented,
+                                titleVisibility: .visible) {
                 ForEach(SavedPlace.Label.allCases, id: \.self) { label in
-                    Button(label == .other ? "保存だけする" : "\(label.displayName)として保存") {
+                    Button(label == .other
+                           ? L10n.string("placeDetail.saveOnly")
+                           : L10n.string("placeDetail.saveAsLabel", label.displayName)) {
                         viewModel.save(place, label: label)
                     }
                     .accessibilityIdentifier(A11y.saveLabelOption(label.rawValue))
                 }
-                Button("キャンセル", role: .cancel) {}
+                Button(L10n.string("search.cancel"), role: .cancel) {}
             }
         }
     }
 
     private var saveButtonTitle: String {
-        guard let label = viewModel.label(for: place) else { return "保存" }
-        return label == .other ? "保存済み" : label.displayName
+        guard let label = viewModel.label(for: place) else { return L10n.string("placeDetail.save") }
+        return label == .other ? L10n.string("placeDetail.saved") : label.displayName
     }
 
     private var saveButtonSymbol: String {

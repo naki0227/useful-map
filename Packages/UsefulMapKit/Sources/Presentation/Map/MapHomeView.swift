@@ -60,7 +60,7 @@ public struct MapHomeView: View {
         .mapControls { MapCompass() }
         .ignoresSafeArea(edges: .top)
         .accessibilityIdentifier("map.canvas")
-        .accessibilityLabel("地図")
+        .accessibilityLabel(L10n.string("map.canvas"))
     }
 
     private var searchBar: some View {
@@ -70,7 +70,7 @@ public struct MapHomeView: View {
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                Text("目的地を検索")
+                Text(l10n: "search.placeholder")
                     .foregroundStyle(.secondary)
                 Spacer()
             }
@@ -81,7 +81,7 @@ public struct MapHomeView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(A11y.searchField)
-        .accessibilityLabel("目的地を検索")
+        .accessibilityLabel(L10n.string("search.placeholder"))
     }
 
     private var quickChips: some View {
@@ -123,7 +123,7 @@ public struct MapHomeView: View {
         .padding(.trailing, 16)
         .padding(.bottom, recentsCardHeight + 24)
         .accessibilityIdentifier(A11y.recenterButton)
-        .accessibilityLabel("現在地へ戻る")
+        .accessibilityLabel(L10n.string("map.recenter"))
     }
 
     private var recentsCardHeight: CGFloat {
@@ -143,7 +143,7 @@ public struct MapHomeView: View {
             }
 
             if !viewModel.recentSearches.isEmpty {
-                Text("最近の検索")
+                Text(l10n: "map.recentSearches")
                     .font(.headline)
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
