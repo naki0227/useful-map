@@ -8,6 +8,9 @@
     "test": "playwright test",
     "test:structure": "playwright test --grep \\[構造\\]",
     "unit": "node --test tests/unit",
+    "urls": "node src/print-urls.mjs",
+    "generate": "node src/generate-swift.mjs",
+    "generate:check": "node src/generate-swift.mjs --check",
     "repair": "node src/repair.mjs",
     "repair:write": "node src/repair.mjs --write",
     "install:browsers": "playwright install --with-deps chromium"

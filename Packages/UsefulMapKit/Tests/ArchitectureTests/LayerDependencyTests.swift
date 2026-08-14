@@ -83,7 +83,7 @@ struct LayerDependencyTests {
         }
     }
 
-    @Test("Google 内部 URL 形式の知識は Data 層の 3 ファイルに閉じている")
+    @Test("Google 内部 URL 形式の知識は Data 層の限られたファイルに閉じている")
     func googleURLKnowledgeIsIsolated() throws {
         // 非公開仕様は GoogleMapsURLBuilder と Contract Watcher の外へ漏らさない（非機能要件 14）。
         let markers = ["!8j", "!7e2", "!3e", "/maps/dir/"]
@@ -93,7 +93,10 @@ struct LayerDependencyTests {
                 let isAllowedFile = module == "Data"
                     && ["GoogleMapsURLBuilder.swift",
                         "GoogleMapsDataParam.swift",
-                        "GoogleTimestamp.swift"].contains(file.name)
+                        "GoogleTimestamp.swift",
+                        "GoogleMapsURLFormat.swift",
+                        // format.json から生成される形式定義。
+                        "GoogleMapsURLFormat+Generated.swift"].contains(file.name)
                 if !isAllowedFile {
                     #expect(leaks.isEmpty,
                             "\(module)/\(file.name) に Google 内部 URL 形式の知識が漏れている: \(leaks)")

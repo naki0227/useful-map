@@ -85,9 +85,9 @@ struct URLFormatContractTests {
     @Test("地点ブロックの定数トークンが一致する")
     func placeBlockMatches() throws {
         let format = try Self.loadFormat()
-        let generated = GoogleMapsURLBuilder.placeTokens(
+        let generated = try #require(GoogleMapsURLBuilder.placeTokens(
             Place(name: "東京駅", latitude: 35.6812362, longitude: 139.7671248)
-        )
+        ))
         #expect(generated.count == format.placeBlock.count)
         for (token, expected) in zip(generated, format.placeBlock) {
             #expect(token.group == expected.group)
@@ -138,9 +138,10 @@ struct URLFormatContractTests {
     @Test("移動手段コードが一致する")
     func modeCodes() throws {
         let format = try Self.loadFormat()
-        #expect(TransportMode.transit.googleDataModeCode == format.modeCode["transit"])
-        #expect(TransportMode.walking.googleDataModeCode == format.modeCode["walking"])
-        #expect(TransportMode.driving.googleDataModeCode == format.modeCode["driving"])
+        for mode in TransportMode.allCases {
+            #expect(mode.googleDataModeCode == format.modeCode[mode.rawValue],
+                    "\(mode.rawValue) のモードコードがずれている")
+        }
     }
 
     @Test("ラッパーのブロック長の決め方が一致する")

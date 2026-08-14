@@ -63,7 +63,13 @@ struct GoogleMapsURLBuilderTests {
 
     // MARK: - Primary URL
 
-    @Test("出発時刻付きの Primary URL を生成する")
+    /// 現行形式のスナップショット。
+    ///
+    /// 形式そのものは `contract-watch/format.json` から生成されるため、
+    /// 契約監視の自動修復で形式が変われば、このテストは意図的に落ちる。
+    /// 落ちたときは差分が妥当かを確認したうえで期待値を更新すること
+    /// （＝形式変更を人間が承認する場所）。
+    @Test("出発時刻付きの Primary URL を生成する（現行形式のスナップショット）")
     func primaryDepartAt() throws {
         let (builder, _) = makeBuilder()
         let option = makeOption(departure: date(10, 32))

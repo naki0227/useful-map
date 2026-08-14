@@ -60,6 +60,10 @@ jobs:
           node-version: '22'
       - working-directory: contract-watch
         run: node --test "tests/unit/*.test.mjs"
+      # format.json だけ直して Swift を再生成し忘れた状態を弾く
+      - name: 生成済み Swift が format.json と一致するか
+        working-directory: contract-watch
+        run: node src/generate-swift.mjs --check
 
   # 3. ビルド + E2E（時間がかかるので単体テストの後）
   e2e:

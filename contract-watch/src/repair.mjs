@@ -18,6 +18,7 @@ import { buildPrimaryURL, buildOfficialURL, formatPath, loadFixtures, loadFormat
 import { extractData, parseData } from './dataParam.mjs';
 import { applyChanges, minimizeChangeSet, structuralDiff } from './diff.mjs';
 import { dismissConsentIfPresent, verifyFixture } from './verify.mjs';
+import { generate, generatedSwiftPath } from './generate-swift.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const artifactsDir = join(here, '..', 'artifacts');
@@ -194,7 +195,12 @@ async function main() {
     report.reason = '最小変更で全 fixture が PASS。修正 PR の候補。';
 
     if (shouldWrite) {
+      // format.json と、そこから生成する Swift の形式定義を同時に更新する。
+      // PR には両方の差分が載り、人間がレビューしてマージする。
       writeFileSync(formatPath, `${JSON.stringify(repairedFormat, null, 2)}\n`, 'utf8');
+      writeFileSync(generatedSwiftPath, generate(repairedFormat), 'utf8');
+      report.updatedFiles = ['contract-watch/format.json',
+                            'Packages/UsefulMapKit/Sources/Data/GoogleMapsURLFormat+Generated.swift'];
     }
     finish(report, 0);
   } finally {

@@ -101,14 +101,19 @@ jobs:
 
             ## 変更
             - `contract-watch/format.json` を最小変更集合で更新
+            - `Packages/UsefulMapKit/Sources/Data/GoogleMapsURLFormat+Generated.swift` を再生成
+              （format.json から機械生成。アプリ側もこの PR で追随します）
             - 最小差分の内容は Artifact `repair-report.json` の `minimalChanges` を参照
 
             ## 検証
             - 修復後に全 fixture が PASS したことを確認済み（このジョブの再テスト）
+            - マージ前に CI（単体テスト・E2E・生成物の一致チェック）が回ります
 
             ## レビュー時の確認事項
-            - [ ] `GoogleMapsURLBuilder.swift` を `format.json` に合わせて更新したか
-                  （`DataTests/URLFormatContractTests` が両者の一致を検証します）
+            - [ ] 最小差分が形式変更として妥当か（`repair-report.json` の `minimalChanges`）
+            - [ ] 生成された Swift の差分が format.json の差分と対応しているか
+            - [ ] `DataTests/GoogleMapsURLBuilderTests` のスナップショット期待値を更新したか
+                  （形式が変わると意図的に落ちる。ここが形式変更を人間が承認する場所です）
             - [ ] 実機で Google Maps へ遷移し、時刻条件が反映されるか
           labels: |
             contract-watch
@@ -135,7 +140,7 @@ jobs:
               '## 対応',
               '1. Artifact のスクリーンショットと最終 URL を確認する',
               '2. Google Maps UI から同条件の正解 URL を手動で取得する',
-              '3. `contract-watch/format.json` と `GoogleMapsURLBuilder.swift` を更新する',
+              '3. `contract-watch/format.json` を更新し、`make generate-format` で Swift を再生成する',
               '4. `swift test` と `npx playwright test` が通ることを確認する'
             ].join('\n');
 

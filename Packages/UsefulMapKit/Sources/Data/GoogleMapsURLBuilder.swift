@@ -1,13 +1,9 @@
 import Domain
 import Foundation
 
-/// Google Maps への外部詳細遷移 URL を組み立てる（仕様書 7）。
-///
-/// 非公開の `data=` 形式はこの型と `GoogleMapsDataParam` の外へ漏らさない（非機能要件 14）。
-/// アプリ本体の経路取得はこの型に依存しないため、形式が壊れても比較機能は動き続ける。
 /// 移動手段の Google 側表現。Domain には持たせず、この層で対応付ける。
 extension TransportMode {
-    /// 公式 Maps URLs の travelmode 値。
+    /// 公式 Maps URLs の travelmode 値（公開 API なので生成対象に含めない）。
     var googleTravelMode: String {
         switch self {
         case .transit: return "transit"
@@ -16,18 +12,23 @@ extension TransportMode {
         }
     }
 
-    /// 内部 data= のモードコード（`!3e` に載る値）。
-    var googleDataModeCode: String {
-        switch self {
-        case .driving: return "0"
-        case .walking: return "2"
-        case .transit: return "3"
-        }
+    /// 内部 data= のモードコード。値は生成された形式定義から引く。
+    var googleDataModeCode: String? {
+        GoogleMapsURLFormat.modeCode[rawValue]
     }
 }
 
+/// Google Maps への外部詳細遷移 URL を組み立てる（仕様書 7）。
+///
+/// 形式そのもの（トークンの並びと定数値）は `GoogleMapsURLFormat+Generated.swift` にあり、
+/// `contract-watch/format.json` から生成される。この型が持つのは
+/// 「地点の数だけブロックを並べ、ブロック長を数え、パスを組む」という手続きだけで、
+/// 契約監視の自動修復が変更するのは前者に限られる。
+///
+/// 非公開仕様はこの一群の外へ漏らさない（非機能要件 14）。
+/// アプリ本体の経路取得はこれに依存しないため、形式が壊れても比較機能は動き続ける。
 public struct GoogleMapsURLBuilder: RouteDetailLinking {
-    public static let host = "https://www.google.com"
+    public static var host: String { GoogleMapsURLFormat.host }
 
     private let timeZone: TimeZone
     private let opener: URLOpening
@@ -44,52 +45,80 @@ public struct GoogleMapsURLBuilder: RouteDetailLinking {
         let places = option.orderedPlaces
         guard places.count >= 2, places.allSatisfy({ $0.coordinate.isValid }) else { return nil }
 
+        let timestamp = GoogleTimestamp.value(for: anchor.date, timeZone: timeZone)
+        guard let tokens = Self.dataTokens(places: places,
+                                           anchor: anchor,
+                                           timestamp: timestamp,
+                                           mode: option.mode),
+              GoogleMapsDataParam.isStructurallyConsistent(tokens) else { return nil }
+
         let path = places.map { Self.pathSegment(for: $0) }.joined(separator: "/")
-        let tokens = Self.dataTokens(places: places,
-                                     anchor: anchor,
-                                     timestamp: GoogleTimestamp.value(for: anchor.date, timeZone: timeZone),
-                                     mode: option.mode)
-        guard GoogleMapsDataParam.isStructurallyConsistent(tokens) else { return nil }
-        return URL(string: "\(Self.host)/maps/dir/\(path)/data=\(GoogleMapsDataParam.encode(tokens))")
+        let string = GoogleMapsURLFormat.host
+            + GoogleMapsURLFormat.pathPrefix
+            + path
+            + GoogleMapsURLFormat.dataPrefix
+            + GoogleMapsDataParam.encode(tokens)
+        return URL(string: string)
     }
 
     /// data= のトークン列を組み立てる。
     ///
-    ///   !4m{n+1}!4m{n}                 … 全体を包むブロック
-    ///   !1m5!1m1!1s0x0:0x0!2m2!1d{lng}!2d{lat}   … 地点ブロック（出発地→経由地→目的地）
-    ///   !2m3!6e{0|1}!7e2!8j{timestamp} … 時刻ブロック（6e0=出発指定 / 6e1=到着指定）
-    ///   !3e{mode}                      … 移動手段
+    ///   wrapper                        … 全体を包むブロック（後続トークン数を持つ）
+    ///   placeBlock × 地点数             … 出発地 → 経由地 → 目的地
+    ///   timeBlock                      … 出発 / 到着の指定と時刻
+    ///   modeToken                      … 移動手段
     ///
     /// 地点に Google Place ID は要求せず、名称と緯度経度だけで生成する（仕様書 7.2）。
     static func dataTokens(places: [Place],
                            anchor: TimeAnchor,
                            timestamp: Int,
-                           mode: TransportMode) -> [DataToken] {
-        var body: [DataToken] = places.flatMap(placeTokens)
-        body += [
-            DataToken(group: 2, kind: "m", value: "3"),
-            DataToken(group: 6, kind: "e", value: anchor.kind == .arrive ? "1" : "0"),
-            DataToken(group: 7, kind: "e", value: "2"),
-            DataToken(group: 8, kind: "j", value: String(timestamp))
-        ]
-        body.append(DataToken(group: 3, kind: "e", value: mode.googleDataModeCode))
+                           mode: TransportMode) -> [DataToken]? {
+        guard let timeMode = GoogleMapsURLFormat.timeMode[anchor.kind == .arrive ? "arriveBy" : "departAt"],
+              let modeCode = GoogleMapsURLFormat.modeCode[mode.rawValue] else { return nil }
 
-        return [
-            DataToken(group: 4, kind: "m", value: String(body.count + 1)),
-            DataToken(group: 4, kind: "m", value: String(body.count))
-        ] + body
+        var body: [DataToken] = []
+        for place in places {
+            guard let tokens = placeTokens(place) else { return nil }
+            body += tokens
+        }
+
+        let timeSubstitutions: [FormatPlaceholder: String] = [
+            .timeMode: timeMode,
+            .timestamp: String(timestamp)
+        ]
+        for token in GoogleMapsURLFormat.timeBlock {
+            guard let resolved = token.resolved(with: timeSubstitutions) else { return nil }
+            body.append(resolved)
+        }
+
+        guard let modeToken = GoogleMapsURLFormat.modeToken.resolved(with: [.modeCode: modeCode]) else {
+            return nil
+        }
+        body.append(modeToken)
+
+        let wrapperSubstitutions: [FormatPlaceholder: String] = [
+            .outerCount: String(body.count + 1),
+            .innerCount: String(body.count)
+        ]
+        var wrapper: [DataToken] = []
+        for token in GoogleMapsURLFormat.wrapper {
+            guard let resolved = token.resolved(with: wrapperSubstitutions) else { return nil }
+            wrapper.append(resolved)
+        }
+        return wrapper + body
     }
 
-    static func placeTokens(_ place: Place) -> [DataToken] {
-        [
-            DataToken(group: 1, kind: "m", value: "5"),
-            DataToken(group: 1, kind: "m", value: "1"),
-            // Place ID を使わない場合の中立値。
-            DataToken(group: 1, kind: "s", value: "0x0:0x0"),
-            DataToken(group: 2, kind: "m", value: "2"),
-            DataToken(group: 1, kind: "d", value: place.coordinate.longitudeString),
-            DataToken(group: 2, kind: "d", value: place.coordinate.latitudeString)
+    static func placeTokens(_ place: Place) -> [DataToken]? {
+        let substitutions: [FormatPlaceholder: String] = [
+            .longitude: place.coordinate.longitudeString,
+            .latitude: place.coordinate.latitudeString
         ]
+        var tokens: [DataToken] = []
+        for token in GoogleMapsURLFormat.placeBlock {
+            guard let resolved = token.resolved(with: substitutions) else { return nil }
+            tokens.append(resolved)
+        }
+        return tokens
     }
 
     /// URL パスに載せる地点名。名前が無い地点は座標を使う。
@@ -115,7 +144,7 @@ public struct GoogleMapsURLBuilder: RouteDetailLinking {
         guard let origin = places.first, let destination = places.last, places.count >= 2 else { return nil }
         guard origin.coordinate.isValid, destination.coordinate.isValid else { return nil }
 
-        var components = URLComponents(string: "\(Self.host)/maps/dir/")
+        var components = URLComponents(string: GoogleMapsURLFormat.host + GoogleMapsURLFormat.pathPrefix)
         var items = [
             URLQueryItem(name: "api", value: "1"),
             URLQueryItem(name: "origin", value: Self.coordinateValue(origin)),

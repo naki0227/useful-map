@@ -116,9 +116,17 @@ Google Maps の URL を機械生成します。Google の API へは一切通信
 - **Primary**: 時刻付きの内部 `data=` 形式（非公開仕様）。`!6e0` 出発指定 / `!6e1` 到着指定、`!8j` に時刻。
 - **Fallback**: 公式 Maps URLs の Directions 形式。時刻条件は保証されませんが地点と移動手段は引き継ぎます。
 
-内部形式の知識は `Data/GoogleMapsURLBuilder.swift` / `GoogleMapsDataParam.swift` /
-`GoogleTimestamp.swift` の 3 ファイルにのみ存在し、アプリ本体の経路取得はこれに依存しません。
+内部形式の知識は Data 層の Google 系ファイルにのみ存在し、アプリ本体の経路取得はこれに依存しません。
 形式が壊れても比較機能は動き続けます。
+
+形式そのもの（トークンの並びと定数値）は `contract-watch/format.json` を単一の真実として
+`GoogleMapsURLFormat+Generated.swift` へ生成します。`GoogleMapsURLBuilder` が持つのは
+「地点の数だけブロックを並べ、ブロック長を数え、パスを組む」手続きだけです。
+
+```bash
+make generate-format   # format.json から Swift を再生成
+make verify-format     # 生成物がずれていないか確認（CI でも実行）
+```
 
 ### `!8j` の時刻値について
 
@@ -141,6 +149,9 @@ FAIL → 診断 Artifact（screenshot / trace / HTML report / 最終 URL）
 ```
 
 「FAIL した」だけでは PR を作りません（仕様書 9）。
+PR には `format.json` と生成された Swift の両方の差分が載るため、マージすればアプリ側も追随します。
+形式が変わると `GoogleMapsURLBuilderTests` のスナップショットが意図的に落ちるので、
+そこが「形式変更を人間が承認する場所」になります。
 
 ## 品質ハーネス
 
