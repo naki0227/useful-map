@@ -117,7 +117,7 @@ open UsefulMap.xcodeproj
 ## テスト
 
 ```bash
-make unit          # Swift Testing 254 件（単体 + アーキテクチャ + ローカライズ）
+make unit          # Swift Testing 262 件（単体 + アーキテクチャ + ローカライズ）
 make contract-unit # 契約監視の単体テスト 19 件（ネットワーク不要）
 make e2e           # XCUITest 10 本（シミュレータ内で完結）
 make all           # PR 前の一式（+ SwiftLint, jscpd）
@@ -132,7 +132,7 @@ make all           # PR 前の一式（+ SwiftLint, jscpd）
 | ローカライズ | `PresentationTests/LocalizationTests` | 5 言語の翻訳漏れ・書式指定子・ロケール解決 |
 | 契約（Swift ↔ 監視） | `DataTests/URLFormatContractTests` | Swift の生成結果と `contract-watch/format.json` の一致 |
 | E2E（XCUITest） | `Tests/UITests` | 検索→区間分割、区間のモード切替、インライン編集、徒歩ペース、時刻付き遷移、fallback、0 件、保存・履歴 |
-| 契約監視（Playwright） | `contract-watch/tests` | 実際に Google Maps を開いて条件が保たれるか |
+| 契約監視（Playwright） | `contract-watch/tests` | 実際に Google Maps を開いて、地点・移動手段・出発/到着指定・日時が保たれるか（10 件） |
 
 E2E は起動引数 `-UITestMode` で MapKit / Core Location / 外部遷移をスタブへ差し替えるため、
 ネットワークにも実機の位置情報にも依存せず決定的に動きます（`App/UITestConfiguration.swift`）。
@@ -232,6 +232,10 @@ SwiftLint にはカスタムルール `no_google_url_outside_builder`（内部 U
 - `MKRoute` の代わりに描画用の座標列 `geometry` を持ちます。Domain を MapKit から独立させるためで、
   変換は Infrastructure が行います。
 - **Google マップは公共交通で経由地に対応していません**。そのため詳細は区間ごとに開きます。
+- 区間の検索は前の区間に着いた時刻から行います。全区間を「今から」で検索すると、
+  徒歩でまだ駅に着いていないのに「今出る電車」を出してしまうためです。
+- 公共交通区間の自動分割は、待ち時間まで含めて**遅くならない場合だけ**行います。
+  直通列車に乗ったままの区間は途中駅で区切ると必ず遅くなるので、直通のまま残ります。
 - MapKit の公共交通は `MKDirections.calculate()` が経路を返さないため `calculateETA()` を使い、
   出発時刻・到着時刻・所要時間だけを取得します。運賃・乗換は取得も推定もしません。
 - 経由地は MKDirections が直接対応しないため、区間ごとに計算して合算します。
