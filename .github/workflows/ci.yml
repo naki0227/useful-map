@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+  SIMULATOR: platform=iOS Simulator,name=iPhone 17
+
+jobs:
+  # 1. 単体テスト + アーキテクチャテスト（最も速く落ちるので最初に回す）
+  unit-tests:
+    name: Swift 単体・アーキテクチャテスト
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift test
+        working-directory: Packages/UsefulMapKit
+        run: swift test --parallel
+
+  # 2. 静的解析（テストと独立なので並行）
+  lint:
+    name: SwiftLint
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install swiftlint
+      - run: swiftlint lint --strict --reporter github-actions-logging
+
+  duplication:
+    name: コード重複チェック
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npx --yes jscpd@4 --config .jscpd.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jscpd-report
+          path: artifacts/jscpd
+          if-no-files-found: ignore
+
+  contract-watch-unit:
+    name: 契約監視の単体テスト
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - working-directory: contract-watch
+        run: node --test "tests/unit/*.test.mjs"
+
+  # 3. ビルド + E2E（時間がかかるので単体テストの後）
+  e2e:
+    name: ビルド + E2E（XCUITest）
+    runs-on: macos-15
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: E2E
+        run: |
+          xcodebuild test \
+            -project UsefulMap.xcodeproj \
+            -scheme UsefulMap \
+            -destination "$SIMULATOR" \
+            -only-testing:UsefulMapUITests \
+            -resultBundlePath artifacts/e2e.xcresult
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-results
+          path: artifacts/e2e.xcresult
+
+  # 4. 未使用コード検出（ビルドが必要なので E2E と同じ前提で最後）
+  dead-code:
+    name: Periphery（未使用コード）
+    runs-on: macos-15
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen peripheryapp/periphery/periphery
+      - run: xcodegen generate
+      - run: periphery scan --config .periphery.yml --format github-actions

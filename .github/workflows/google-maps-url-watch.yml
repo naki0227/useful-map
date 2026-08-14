@@ -1,0 +1,162 @@
+name: Google Maps URL Contract Watch
+
+# 非公開の data= 形式の仕様変更を、ユーザーより先に検知する（仕様書 8-10）。
+on:
+  schedule:
+    # 毎日 1 回（UTC 21:00 = JST 06:00）
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+    inputs:
+      attempt_repair:
+        description: 'FAIL 時に自動修復を試みる'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  watch:
+    name: 固定 fixture の契約テスト
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.contract.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 依存インストール
+        working-directory: contract-watch
+        run: |
+          npm install --no-package-lock
+          npx playwright install --with-deps chromium
+
+      - name: 生成側の自己検査（ネットワーク前に落とす）
+        working-directory: contract-watch
+        run: node --test "tests/unit/*.test.mjs"
+
+      - name: fixture テスト
+        id: contract
+        continue-on-error: true
+        working-directory: contract-watch
+        run: npx playwright test
+
+      # FAIL 時の診断 Artifact（仕様書 8.5）
+      - name: 診断 Artifact を保存
+        if: steps.contract.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-failure-artifacts
+          path: |
+            contract-watch/artifacts
+          retention-days: 30
+
+      - name: PASS なら終了
+        if: steps.contract.outcome == 'success'
+        run: echo "契約は維持されている。何もしない。"
+
+      # --- 以降は FAIL 時のみ ---
+
+      - name: 自動差分解析・修復を試行
+        id: repair
+        if: steps.contract.outcome == 'failure' && inputs.attempt_repair != false
+        continue-on-error: true
+        working-directory: contract-watch
+        run: node src/repair.mjs --write
+
+      - name: 修復後の全 fixture 再テスト
+        id: reverify
+        if: steps.repair.outcome == 'success'
+        continue-on-error: true
+        working-directory: contract-watch
+        run: npx playwright test
+
+      - name: 修復レポートを保存
+        if: always() && steps.contract.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: repair-report
+          path: contract-watch/artifacts/repair-report.json
+          if-no-files-found: ignore
+
+      # 全 fixture が PASS したときだけ PR を作る（仕様書 9 の PR 作成条件）
+      - name: 修正 PR を作成
+        if: steps.reverify.outcome == 'success'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: fix/google-maps-url-format
+          title: 'fix: Google Maps 内部 URL 形式の変更に追随'
+          commit-message: 'fix: Google Maps 内部 URL 形式の変更に追随'
+          body: |
+            Google Maps の非公開 `data=` 形式が変更されたため、契約監視が最小差分を探索して修正しました。
+
+            ## 検出
+            - 定期実行: `${{ github.workflow }}` (run ${{ github.run_id }})
+            - FAIL した fixture と実測値は Artifact `contract-failure-artifacts` を参照
+
+            ## 変更
+            - `contract-watch/format.json` を最小変更集合で更新
+            - 最小差分の内容は Artifact `repair-report.json` の `minimalChanges` を参照
+
+            ## 検証
+            - 修復後に全 fixture が PASS したことを確認済み（このジョブの再テスト）
+
+            ## レビュー時の確認事項
+            - [ ] `GoogleMapsURLBuilder.swift` を `format.json` に合わせて更新したか
+                  （`DataTests/URLFormatContractTests` が両者の一致を検証します）
+            - [ ] 実機で Google Maps へ遷移し、時刻条件が反映されるか
+          labels: |
+            contract-watch
+            automated
+
+      # 修復できない場合は Issue のみ（アプリ側は公式 URL fallback を維持する）
+      - name: 修復不能なら Issue を作成
+        if: steps.contract.outcome == 'failure' && steps.reverify.outcome != 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Google Maps 内部 URL 形式が壊れた可能性（自動修復不能）';
+            const body = [
+              'Google Maps の時刻付き内部 URL（`data=`）の契約テストが FAIL しました。',
+              '自動修復を試みましたが、全 fixture を PASS させる最小変更集合を見つけられませんでした。',
+              '',
+              `- ワークフロー: ${context.workflow} (run ${context.runId})`,
+              '- 診断 Artifact: `contract-failure-artifacts` / `repair-report.json`',
+              '',
+              '## アプリ側の影響',
+              'Primary URL が開けない場合は公式 Directions URL へ fallback するため、',
+              '地図・検索・移動手段の比較は引き続き利用できます（時刻条件は保証されません）。',
+              '',
+              '## 対応',
+              '1. Artifact のスクリーンショットと最終 URL を確認する',
+              '2. Google Maps UI から同条件の正解 URL を手動で取得する',
+              '3. `contract-watch/format.json` と `GoogleMapsURLBuilder.swift` を更新する',
+              '4. `swift test` と `npx playwright test` が通ることを確認する'
+            ].join('\n');
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'contract-watch'
+            });
+            if (existing.data.some((issue) => issue.title === title)) {
+              core.info('同じ Issue が既に open。重複作成しない。');
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['contract-watch', 'bug']
+            });
+
+      - name: FAIL を可視化する
+        if: steps.contract.outcome == 'failure' && steps.reverify.outcome != 'success'
+        run: exit 1

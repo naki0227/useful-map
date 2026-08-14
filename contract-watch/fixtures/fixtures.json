@@ -1,0 +1,57 @@
+[
+  {
+    "name": "transit-departAt-tokyo",
+    "description": "公共交通 / 出発時刻指定（仕様書 8.3）",
+    "origin": { "name": "御茶ノ水駅", "latitude": 35.6993, "longitude": 139.7649 },
+    "destination": { "name": "東京駅", "latitude": 35.6812362, "longitude": 139.7671248 },
+    "waypoints": [],
+    "mode": "transit",
+    "timePreference": "departAt",
+    "timeZone": "Asia/Tokyo",
+    "wallClock": "2026-09-01T10:32"
+  },
+  {
+    "name": "transit-arriveBy-tokyo",
+    "description": "公共交通 / 到着時刻指定",
+    "origin": { "name": "御茶ノ水駅", "latitude": 35.6993, "longitude": 139.7649 },
+    "destination": { "name": "東京駅", "latitude": 35.6812362, "longitude": 139.7671248 },
+    "waypoints": [],
+    "mode": "transit",
+    "timePreference": "arriveBy",
+    "timeZone": "Asia/Tokyo",
+    "wallClock": "2026-09-01T11:00"
+  },
+  {
+    "name": "transit-departAt-osaka",
+    "description": "異なる地域でも地点依存でないこと",
+    "origin": { "name": "大阪駅", "latitude": 34.7024854, "longitude": 135.4959506 },
+    "destination": { "name": "京都駅", "latitude": 34.9858083, "longitude": 135.7587846 },
+    "waypoints": [],
+    "mode": "transit",
+    "timePreference": "departAt",
+    "timeZone": "Asia/Tokyo",
+    "wallClock": "2026-09-01T09:15"
+  },
+  {
+    "name": "transit-non-station-place",
+    "description": "駅以外の地点でも Place ID 無しで動くこと",
+    "origin": { "name": "新宿御苑", "latitude": 35.6852, "longitude": 139.71 },
+    "destination": { "name": "東京タワー", "latitude": 35.6585805, "longitude": 139.7454329 },
+    "waypoints": [],
+    "mode": "transit",
+    "timePreference": "departAt",
+    "timeZone": "Asia/Tokyo",
+    "wallClock": "2026-09-01T14:05"
+  },
+  {
+    "name": "transit-coordinates-only",
+    "description": "MapKit 座標だけ（名称が座標）でも生成できること",
+    "origin": { "name": "", "latitude": 35.6993, "longitude": 139.7649 },
+    "destination": { "name": "", "latitude": 35.6812362, "longitude": 139.7671248 },
+    "waypoints": [],
+    "mode": "transit",
+    "timePreference": "departAt",
+    "timeZone": "Asia/Tokyo",
+    "wallClock": "2026-09-01T18:40"
+  }
+]

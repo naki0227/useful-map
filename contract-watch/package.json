@@ -1,0 +1,18 @@
+{
+  "name": "usefulmap-contract-watch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Google Maps 時刻付き内部 URL 形式の契約監視と自動修復（Useful Map 仕様書 8-10）",
+  "scripts": {
+    "test": "playwright test",
+    "test:structure": "playwright test --grep \\[構造\\]",
+    "unit": "node --test tests/unit",
+    "repair": "node src/repair.mjs",
+    "repair:write": "node src/repair.mjs --write",
+    "install:browsers": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

@@ -1,0 +1,19 @@
+# Xcode（プロジェクトは XcodeGen で生成するため管理しない）
+UsefulMap.xcodeproj/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# SwiftPM
+Packages/UsefulMapKit/.build/
+.swiftpm/
+
+# 生成物
+artifacts/
+contract-watch/artifacts/
+contract-watch/node_modules/
+contract-watch/test-results/
+contract-watch/playwright-report/
+
+# macOS
+.DS_Store

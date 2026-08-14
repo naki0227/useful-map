@@ -1,0 +1,33 @@
+{
+  "$comment": [
+    "Google Maps 内部 URL（data=）の構造定義。アプリ側 GoogleMapsURLBuilder と契約監視の共有真実。",
+    "Swift 側の生成結果がこの定義と一致することは DataTests/URLFormatContractTests が検証する。",
+    "形式が壊れた場合、CI の自動修復はこのファイルの最小差分を探索して更新する。"
+  ],
+  "version": 1,
+  "host": "https://www.google.com",
+  "pathPrefix": "/maps/dir/",
+  "dataPrefix": "/data=",
+  "wrapper": {
+    "outer": { "group": 4, "kind": "m", "value": "{outerCount}" },
+    "inner": { "group": 4, "kind": "m", "value": "{innerCount}" }
+  },
+  "placeBlock": [
+    { "group": 1, "kind": "m", "value": "5" },
+    { "group": 1, "kind": "m", "value": "1" },
+    { "group": 1, "kind": "s", "value": "0x0:0x0" },
+    { "group": 2, "kind": "m", "value": "2" },
+    { "group": 1, "kind": "d", "value": "{longitude}" },
+    { "group": 2, "kind": "d", "value": "{latitude}" }
+  ],
+  "timeBlock": [
+    { "group": 2, "kind": "m", "value": "3" },
+    { "group": 6, "kind": "e", "value": "{timeMode}" },
+    { "group": 7, "kind": "e", "value": "2" },
+    { "group": 8, "kind": "j", "value": "{timestamp}" }
+  ],
+  "modeToken": { "group": 3, "kind": "e", "value": "{modeCode}" },
+  "timeMode": { "departAt": "0", "arriveBy": "1" },
+  "modeCode": { "driving": "0", "walking": "2", "transit": "3" },
+  "coordinatePrecision": 7
+}

@@ -1,0 +1,17 @@
+# 未使用コード検出（https://github.com/peripheryapp/periphery）
+project: UsefulMap.xcodeproj
+schemes:
+  - UsefulMap
+targets:
+  - UsefulMap
+
+# SwiftUI / Codable / プロトコル準拠は動的に使われるため、既定の保守的な扱いを維持する。
+retain_public: false
+retain_objc_accessible: true
+retain_assign_only_properties: true
+skip_build: false
+strict: true
+
+# UI テスト専用の注入コードは Release では未使用に見えるため除外する。
+report_exclude:
+  - "**/UITestConfiguration.swift"

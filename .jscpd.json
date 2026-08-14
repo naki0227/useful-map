@@ -1,0 +1,22 @@
+{
+  "$comment": "コード重複の監視。Swift 界隈に定番の dupl 相当が無いため汎用 clone detector を使う。",
+  "threshold": 3,
+  "minLines": 12,
+  "minTokens": 70,
+  "reporters": ["console", "json"],
+  "output": "artifacts/jscpd",
+  "absolute": true,
+  "gitignore": true,
+  "format": ["swift", "javascript"],
+  "path": [
+    "Packages/UsefulMapKit/Sources",
+    "App",
+    "contract-watch/src"
+  ],
+  "ignore": [
+    "**/.build/**",
+    "**/DerivedData/**",
+    "**/artifacts/**",
+    "**/node_modules/**"
+  ]
+}

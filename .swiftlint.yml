@@ -1,0 +1,97 @@
+included:
+  - Packages/UsefulMapKit/Sources
+  - Packages/UsefulMapKit/Tests
+  - App
+  - Tests
+
+excluded:
+  - Packages/UsefulMapKit/.build
+  - DerivedData
+
+# 既定で有効なルールに加えて、層の分離と可読性に効くものを足す。
+opt_in_rules:
+  - array_init
+  - closure_end_indentation
+  - closure_spacing
+  - collection_alignment
+  - contains_over_filter_count
+  - contains_over_first_not_nil
+  - empty_collection_literal
+  - empty_count
+  - empty_string
+  - explicit_init
+  - fatal_error_message
+  - first_where
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - last_where
+  - literal_expression_end_indentation
+  - multiline_arguments
+  - operator_usage_whitespace
+  - overridden_super_call
+  - prefer_self_type_over_type_of_self
+  - redundant_nil_coalescing
+  - sorted_imports
+  - toggle_bool
+  - unneeded_parentheses_in_closure_argument
+  - vertical_parameter_alignment_on_call
+  - yoda_condition
+
+disabled_rules:
+  - todo
+
+analyzer_rules:
+  - unused_declaration
+  - unused_import
+
+line_length:
+  warning: 120
+  error: 160
+  ignores_comments: true
+  ignores_urls: true
+
+type_body_length:
+  warning: 300
+  error: 400
+
+file_length:
+  warning: 400
+  error: 600
+  ignore_comment_only_lines: true
+
+function_body_length:
+  warning: 60
+  error: 100
+
+cyclomatic_complexity:
+  warning: 10
+  error: 15
+
+identifier_name:
+  min_length:
+    warning: 2
+  excluded: [id, up, to, at]
+
+nesting:
+  type_level: 2
+
+# テストでは強制アンラップや長いメソッドを許す（可読性を優先する）。
+force_unwrapping:
+  severity: warning
+
+custom_rules:
+  no_google_url_outside_builder:
+    name: "Google 内部 URL 形式の漏れ"
+    regex: '(!8j|!7e2|/maps/dir/)'
+    match_kinds:
+      - string
+    excluded: ".*(GoogleMapsURLBuilder|GoogleMapsDataParam|GoogleTimestamp|Tests|UITestConfiguration).*"
+    message: "Google Maps 内部 URL 形式は GoogleMapsURLBuilder 系にだけ置くこと（非機能要件 14）"
+    severity: error
+
+  no_print_in_sources:
+    name: "print の残存"
+    regex: '(?<!\w)print\('
+    included: ".*/Sources/.*"
+    message: "リリースコードに print を残さない"
+    severity: warning
