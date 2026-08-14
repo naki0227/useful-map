@@ -12,3 +12,6 @@
 "route.error.noRoutes" = "ไม่พบเส้นทางที่ใช้ได้";
 "route.error.unsupported" = "ไม่สามารถหาเส้นทาง%@ในพื้นที่นี้ได้";
 "route.error.cancelled" = "ยกเลิกการค้นหาแล้ว";
+"pace.slow" = "ช้า";
+"pace.normal" = "ปกติ";
+"pace.fast" = "เร็ว";

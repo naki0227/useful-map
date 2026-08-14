@@ -39,11 +39,6 @@ public enum RouteError: Error, Equatable, Sendable {
     }
 }
 
-public protocol RouteProviding: Sendable {
-    /// 指定モードの候補を返す。出発地は解決済みの Place を渡す。
-    func routes(for query: RouteQuery, resolvedOrigin: Place) async throws -> [RouteOption]
-}
-
 // MARK: - 位置情報
 
 public enum LocationAuthorizationStatus: String, Sendable {
@@ -91,4 +86,32 @@ public protocol RouteDetailLinking: Sendable {
 public protocol URLOpening: Sendable {
     /// 開けたら true。
     func open(_ url: URL) async -> Bool
+}
+
+// MARK: - 公共交通の乗降地点
+
+/// MapKit は公共交通の乗車駅を返さないため、地理的に近い停留所をアプリ側で探して補う。
+/// 推定なので実際の路線事情とはズレうる。ユーザーが選び直せることを前提にする。
+public protocol TransitStopLocating: Sendable {
+    /// 指定座標の近くにある公共交通の乗降地点を、近い順に返す。
+    func stops(near coordinate: Coordinate, within meters: Double, limit: Int) async throws -> [Place]
+}
+
+// MARK: - 区間単位の経路取得
+
+public protocol SegmentRouting: Sendable {
+    /// 1 区間ぶんの所要時間・時刻・距離・経路線を取得する。
+    func leg(from: Place,
+             to: Place,
+             mode: TransportMode,
+             timePreference: TimePreference,
+             requestedDate: Date?) async throws -> RouteLeg
+}
+
+// MARK: - 座標から地点へ
+
+/// 地図をタップして地点を選ぶための逆引き。
+public protocol PlaceResolving: Sendable {
+    /// 座標に対応する地点。名称が取れなければ座標そのものを名前にする。
+    func place(at coordinate: Coordinate) async -> Place
 }

@@ -2,7 +2,11 @@ import Domain
 import MapKit
 import SwiftUI
 
-/// S01 地図ホーム。
+/// 地図画面。検索・場所詳細・経路をすべてこの 1 枚で扱う。
+///
+/// 上のシート = 検索欄、または経路の連鎖編集。
+/// 下のシート = 履歴、場所詳細、経路の要約。
+/// タブで地図と経路を行き来しないので、地図の文脈が切れない。
 public struct MapHomeView: View {
     private let dependencies: AppDependencies
     @StateObject private var viewModel: MapHomeViewModel
@@ -17,50 +21,102 @@ public struct MapHomeView: View {
     public var body: some View {
         ZStack(alignment: .top) {
             map
-            VStack(spacing: 12) {
-                searchBar
-                quickChips
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-
+            topSheet
             VStack(spacing: 0) {
                 Spacer()
-                recentsCard
+                bottomSheet
             }
         }
         .overlay(alignment: .bottomTrailing) { recenterButton }
         .task { await viewModel.onAppear() }
         .onChange(of: viewModel.currentCoordinate) { _, coordinate in
-            guard let coordinate else { return }
+            guard let coordinate, router.planViewModel == nil else { return }
             camera = .region(coordinate.region())
-        }
-        .sheet(isPresented: $router.isSearchPresented) {
-            SearchView(dependencies: dependencies,
-                       center: viewModel.currentCoordinate) { place in
-                viewModel.refreshStoredData()
-                router.showPlaceDetail(place)
-            }
-        }
-        .sheet(item: $router.detailPlace) { place in
-            PlaceDetailView(place: place, dependencies: dependencies)
-                .presentationDetents([.medium, .large])
         }
     }
 
+    // MARK: - 地図
+
     private var map: some View {
-        Map(position: $camera) {
-            UserAnnotation()
-            if let place = router.detailPlace {
-                Marker(place.displayName, coordinate: place.coordinate.mapCoordinate)
-                    .tint(.red)
+        MapReader { proxy in
+            Map(position: $camera) {
+                UserAnnotation()
+
+                if let plan = router.planViewModel?.plan {
+                    ForEach(Array(plan.nodes.enumerated()), id: \.element.id) { index, node in
+                        Marker(node.displayName, coordinate: node.place.coordinate.mapCoordinate)
+                            .tint(index == plan.nodes.count - 1 ? .red : .accentColor)
+                    }
+                    ForEach(plan.segments) { segment in
+                        if let geometry = segment.leg?.geometry, geometry.count > 1 {
+                            MapPolyline(coordinates: geometry.map(\.mapCoordinate))
+                                .stroke(segment.mode == .walking ? Color.secondary : Color.accentColor,
+                                        style: StrokeStyle(lineWidth: 5,
+                                                           dash: segment.mode == .walking ? [6, 6] : []))
+                        }
+                    }
+                } else if let place = router.detailPlace {
+                    Marker(place.displayName, coordinate: place.coordinate.mapCoordinate)
+                        .tint(.red)
+                }
+            }
+            .mapControls { MapCompass() }
+            .ignoresSafeArea(edges: .top)
+            .accessibilityIdentifier("map.canvas")
+            .accessibilityLabel(L10n.string("map.canvas"))
+            .onTapGesture { position in
+                // 「地図で選ぶ」中のときだけ、タップを地点選択として扱う。
+                guard router.mapPickTarget != nil,
+                      let coordinate = proxy.convert(position, from: .local) else { return }
+                Task { await pickPlace(at: Coordinate(latitude: coordinate.latitude,
+                                                      longitude: coordinate.longitude)) }
             }
         }
-        .mapControls { MapCompass() }
-        .ignoresSafeArea(edges: .top)
-        .accessibilityIdentifier("map.canvas")
-        .accessibilityLabel(L10n.string("map.canvas"))
+    }
+
+    private func pickPlace(at coordinate: Coordinate) async {
+        guard let target = router.mapPickTarget else { return }
+        let place = await dependencies.placeResolver.place(at: coordinate)
+        router.planViewModel?.commitPlace(place, at: target)
+        router.mapPickTarget = nil
+    }
+
+    // MARK: - 上のシート
+
+    @ViewBuilder
+    private var topSheet: some View {
+        VStack(spacing: 12) {
+            if let planViewModel = router.planViewModel {
+                RoutePlanChainView(viewModel: planViewModel,
+                                   dependencies: dependencies,
+                                   center: viewModel.currentCoordinate) { index in
+                    router.mapPickTarget = index
+                }
+                if router.mapPickTarget != nil {
+                    mapPickHint
+                }
+            } else {
+                searchBar
+                quickChips
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+
+    private var mapPickHint: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "hand.tap")
+            Text(l10n: "route.pickOnMap.hint")
+                .font(.footnote)
+            Spacer()
+            Button(L10n.string("search.cancel")) { router.mapPickTarget = nil }
+                .font(.footnote)
+        }
+        .padding(10)
+        .background(.background, in: RoundedRectangle(cornerRadius: 10))
+        .shadow(color: .black.opacity(0.1), radius: 6, y: 1)
     }
 
     private var searchBar: some View {
@@ -82,6 +138,13 @@ public struct MapHomeView: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier(A11y.searchField)
         .accessibilityLabel(L10n.string("search.placeholder"))
+        .sheet(isPresented: $router.isSearchPresented) {
+            SearchView(dependencies: dependencies,
+                       center: viewModel.currentCoordinate) { place in
+                viewModel.refreshStoredData()
+                router.showPlaceDetail(place)
+            }
+        }
     }
 
     private var quickChips: some View {
@@ -109,25 +172,23 @@ public struct MapHomeView: View {
         .opacity(viewModel.savedPlaces.isEmpty ? 0 : 1)
     }
 
-    private var recenterButton: some View {
-        Button {
-            Task { await viewModel.refreshLocation() }
-        } label: {
-            Image(systemName: "location.fill")
-                .font(.title3)
-                .padding(14)
-                .background(.background, in: Circle())
-                .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
-        }
-        .buttonStyle(.plain)
-        .padding(.trailing, 16)
-        .padding(.bottom, recentsCardHeight + 24)
-        .accessibilityIdentifier(A11y.recenterButton)
-        .accessibilityLabel(L10n.string("map.recenter"))
-    }
+    // MARK: - 下のシート
 
-    private var recentsCardHeight: CGFloat {
-        viewModel.recentSearches.isEmpty ? 0 : 180
+    @ViewBuilder
+    private var bottomSheet: some View {
+        Group {
+            if let planViewModel = router.planViewModel {
+                RoutePlanSummaryView(viewModel: planViewModel)
+            } else if let place = router.detailPlace {
+                PlaceDetailView(place: place, dependencies: dependencies)
+            } else {
+                recentsCard
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .background(.background)
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16))
+        .shadow(color: .black.opacity(0.12), radius: 10, y: -2)
     }
 
     @ViewBuilder
@@ -181,10 +242,28 @@ public struct MapHomeView: View {
                 .padding(.bottom, 8)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 16, topTrailingRadius: 16))
-        .shadow(color: .black.opacity(0.12), radius: 10, y: -2)
         .opacity(viewModel.recentSearches.isEmpty && viewModel.locationMessage == nil ? 0 : 1)
+    }
+
+    private var recenterButton: some View {
+        Button {
+            Task {
+                await viewModel.refreshLocation()
+                if let coordinate = viewModel.currentCoordinate {
+                    camera = .region(coordinate.region())
+                }
+            }
+        } label: {
+            Image(systemName: "location.fill")
+                .font(.title3)
+                .padding(14)
+                .background(.background, in: Circle())
+                .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 16)
+        .padding(.bottom, 220)
+        .accessibilityIdentifier(A11y.recenterButton)
+        .accessibilityLabel(L10n.string("map.recenter"))
     }
 }

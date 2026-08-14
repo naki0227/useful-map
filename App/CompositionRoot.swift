@@ -19,8 +19,11 @@ enum CompositionRoot {
     static func makeLiveDependencies() -> AppDependencies {
         let opener = SystemURLOpener()
         return AppDependencies(searchService: MapKitPlaceSearchService(),
-                               routeService: MapKitRouteService(),
+                               // 経路は区間単位で取得する。停留所の推定と区間 ETA だけで成立する。
+                               planner: RoutePlanner(stops: MapKitTransitStopLocator(),
+                                                     routing: MapKitRouteService()),
                                locationService: CoreLocationService(),
+                               placeResolver: CoreLocationPlaceResolver(),
                                detailLinking: GoogleMapsURLBuilder(opener: opener),
                                store: UserDefaultsLocalStore())
     }

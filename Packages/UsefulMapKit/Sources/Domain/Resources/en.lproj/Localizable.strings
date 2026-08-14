@@ -12,3 +12,6 @@
 "route.error.noRoutes" = "No available routes were found";
 "route.error.unsupported" = "%@ routes aren't available in this area";
 "route.error.cancelled" = "Search cancelled";
+"pace.slow" = "Slow";
+"pace.normal" = "Normal";
+"pace.fast" = "Fast";

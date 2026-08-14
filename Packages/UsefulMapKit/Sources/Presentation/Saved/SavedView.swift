@@ -5,8 +5,10 @@ import SwiftUI
 public struct SavedView: View {
     @StateObject private var viewModel: SavedViewModel
     @EnvironmentObject private var router: AppRouter
+    private let dependencies: AppDependencies
 
     public init(dependencies: AppDependencies) {
+        self.dependencies = dependencies
         _viewModel = StateObject(wrappedValue: SavedViewModel(dependencies: dependencies))
     }
 
@@ -123,7 +125,8 @@ public struct SavedView: View {
             } else {
                 ForEach(Array(viewModel.recentRoutes.enumerated()), id: \.element.id) { index, route in
                     Button {
-                        router.showRoute(viewModel.query(from: route))
+                        router.selectedTab = .map
+                        router.showRoute(viewModel.plan(from: route), dependencies: dependencies)
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(Formatters.routeTitle(origin: route.origin, destination: route.destination))

@@ -12,3 +12,6 @@
 "route.error.noRoutes" = "利用可能な経路が見つかりませんでした";
 "route.error.unsupported" = "この地域では%@の経路を取得できません";
 "route.error.cancelled" = "検索を中断しました";
+"pace.slow" = "ゆっくり";
+"pace.normal" = "ふつう";
+"pace.fast" = "はやい";

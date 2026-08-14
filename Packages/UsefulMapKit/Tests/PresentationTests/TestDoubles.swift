@@ -50,42 +50,6 @@ final class FakeSearchService: PlaceSearching, @unchecked Sendable {
     }
 }
 
-final class FakeRouteService: RouteProviding, @unchecked Sendable {
-    /// モードごとの応答。未設定のモードは `defaultError` を投げる。
-    var responses: [TransportMode: [RouteOption]] = [:]
-    var errors: [TransportMode: RouteError] = [:]
-    var delay: Duration = .zero
-    private(set) var receivedQueries: [RouteQuery] = []
-    private(set) var receivedOrigins: [Place] = []
-
-    func routes(for query: RouteQuery, resolvedOrigin: Place) async throws -> [RouteOption] {
-        receivedQueries.append(query)
-        receivedOrigins.append(resolvedOrigin)
-        if delay > .zero {
-            try? await Task.sleep(for: delay)
-        }
-        if let error = errors[query.transportMode] { throw error }
-        return responses[query.transportMode] ?? []
-    }
-
-    static func option(_ mode: TransportMode,
-                       minutes: Double,
-                       query: RouteQuery,
-                       origin: Place = Place(name: "現在地",
-                                             coordinate: TestFixtures.currentLocation),
-                       departure: Date? = nil,
-                       arrival: Date? = nil) -> RouteOption {
-        RouteOption(id: "\(mode.rawValue)-0",
-                    query: query,
-                    origin: origin,
-                    mode: mode,
-                    expectedTravelTime: minutes * 60,
-                    departureDate: departure,
-                    arrivalDate: arrival,
-                    distance: 1_000)
-    }
-}
-
 final class FakeLocationService: LocationProviding, @unchecked Sendable {
     var authorizationStatus: LocationAuthorizationStatus
     var coordinate: Coordinate?
@@ -162,17 +126,52 @@ final class FakeStore: LocalStoring {
     }
 }
 
+/// 座標をそのまま地点にする逆引き（地図タップのテスト用）。
+struct FakePlaceResolver: PlaceResolving {
+    var name = "選んだ地点"
+    func place(at coordinate: Coordinate) async -> Place {
+        Place(name: name, coordinate: coordinate)
+    }
+}
+
+/// 停留所を返さない既定のロケータ（プラン分割を伴わないテスト用）。
+struct EmptyStopLocator: TransitStopLocating {
+    func stops(near coordinate: Coordinate, within meters: Double, limit: Int) async throws -> [Place] { [] }
+}
+
+/// 距離から所要時間を機械的に決める区間ルーティング。
+/// MapKit と同じく、公共交通にだけ発着時刻を返す（徒歩・車は時刻を返さない）。
+struct SimpleSegmentRouting: SegmentRouting {
+    func leg(from: Place, to: Place, mode: TransportMode,
+             timePreference: TimePreference, requestedDate: Date?) async throws -> RouteLeg {
+        let distance = from.coordinate.distance(to: to.coordinate)
+        let speed: Double = mode == .walking ? 1.2 : (mode == .transit ? 12 : 8)
+        let duration = distance / speed
+        guard mode == .transit else {
+            return RouteLeg(expectedTravelTime: duration, distance: distance)
+        }
+        let departure = requestedDate ?? TestFixtures.now
+        return RouteLeg(expectedTravelTime: duration,
+                        departureDate: departure,
+                        arrivalDate: departure.addingTimeInterval(duration),
+                        distance: distance)
+    }
+}
+
 @MainActor
 enum TestEnvironment {
     static func make(search: FakeSearchService = FakeSearchService(),
-                     routes: FakeRouteService = FakeRouteService(),
+                     planner: RoutePlanner = RoutePlanner(stops: EmptyStopLocator(),
+                                                          routing: SimpleSegmentRouting()),
                      location: FakeLocationService = FakeLocationService(),
+                     placeResolver: PlaceResolving = FakePlaceResolver(),
                      detail: FakeDetailLinking = FakeDetailLinking(),
                      store: FakeStore = FakeStore(),
                      debounce: Duration = .zero) -> AppDependencies {
         AppDependencies(searchService: search,
-                        routeService: routes,
+                        planner: planner,
                         locationService: location,
+                        placeResolver: placeResolver,
                         detailLinking: detail,
                         store: store,
                         now: { TestFixtures.now },

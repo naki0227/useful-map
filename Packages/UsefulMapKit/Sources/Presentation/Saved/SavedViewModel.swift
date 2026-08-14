@@ -64,10 +64,15 @@ public final class SavedViewModel: ObservableObject {
         refresh()
     }
 
-    /// 履歴から経路比較へ戻るための条件を復元する。
-    public func query(from route: RecentRoute) -> RouteQuery {
-        RouteQuery(origin: route.origin,
-                   destination: route.destination,
-                   transportMode: route.transportMode)
+    /// 履歴から経路を復元する。区間の分割は開いた直後に組み直される。
+    public func plan(from route: RecentRoute) -> RoutePlan {
+        let originPlace = route.origin.place
+            ?? Place(name: RouteEndpoint.currentLocation.displayName,
+                     coordinate: route.destination.coordinate)
+        return RoutePlan.simple(origin: RouteNode(place: originPlace,
+                                                  kind: .origin,
+                                                  isCurrentLocation: route.origin.isCurrentLocation),
+                                destination: RouteNode(place: route.destination, kind: .destination),
+                                mode: route.transportMode)
     }
 }

@@ -16,7 +16,10 @@ public struct TimeAnchor: Hashable, Sendable {
     }
 }
 
-/// 比較カードに正規化された経路候補（仕様書 5.3）。
+/// Google Maps へ区間を委譲するときの表現（仕様書 5.3）。
+///
+/// アプリ内の経路は RoutePlan（ノードと区間）で扱う。この型は
+/// 「2 地点＋時刻条件」を外部サービスへ渡すための境界の形として残している。
 ///
 /// 仕様書では `mapRoute: MKRoute` を保持する案だったが、Domain を MapKit から独立させるため
 /// 描画に必要な情報だけを `geometry`（座標列）として保持する。MKRoute → geometry の変換は

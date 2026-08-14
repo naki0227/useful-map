@@ -12,3 +12,6 @@
 "route.error.noRoutes" = "이용 가능한 경로를 찾을 수 없습니다";
 "route.error.unsupported" = "이 지역에서는 %@ 경로를 가져올 수 없습니다";
 "route.error.cancelled" = "검색을 취소했습니다";
+"pace.slow" = "느리게";
+"pace.normal" = "보통";
+"pace.fast" = "빠르게";

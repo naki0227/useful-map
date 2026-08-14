@@ -12,3 +12,6 @@
 "route.error.noRoutes" = "未找到可用的路线";
 "route.error.unsupported" = "该地区无法获取%@路线";
 "route.error.cancelled" = "已取消搜索";
+"pace.slow" = "慢";
+"pace.normal" = "普通";
+"pace.fast" = "快";

@@ -5,13 +5,21 @@ import SwiftUI
 /// S03 場所詳細。主要 CTA は「経路」。運賃・乗換・路線情報は表示しない（仕様書 S03）。
 public struct PlaceDetailView: View {
     private let place: Place
+    private let dependencies: AppDependencies
     @StateObject private var viewModel: SavedViewModel
     @EnvironmentObject private var router: AppRouter
     @Environment(\.dismiss) private var dismiss
     @State private var isLabelPickerPresented = false
 
+    /// 現在地の実座標は RoutePlanViewModel が取得のたびに解決する。
+    /// ここでは「現在地である」という印だけを持った仮のノードを渡す。
+    private var currentLocationPlace: Place {
+        Place(name: RouteEndpoint.currentLocation.displayName, coordinate: place.coordinate)
+    }
+
     public init(place: Place, dependencies: AppDependencies) {
         self.place = place
+        self.dependencies = dependencies
         _viewModel = StateObject(wrappedValue: SavedViewModel(dependencies: dependencies))
     }
 
@@ -56,9 +64,13 @@ public struct PlaceDetailView: View {
     private var actions: some View {
         HStack(spacing: 12) {
             Button {
-                router.showRoute(RouteQuery(origin: .currentLocation,
-                                            destination: place,
-                                            transportMode: .transit))
+                router.showRoute(
+                    RoutePlan.simple(origin: RouteNode(place: currentLocationPlace,
+                                                       kind: .origin,
+                                                       isCurrentLocation: true),
+                                     destination: RouteNode(place: place, kind: .destination),
+                                     mode: .transit),
+                    dependencies: dependencies)
             } label: {
                 Label(L10n.string("placeDetail.route"), systemImage: "arrow.triangle.turn.up.right.diamond.fill")
                     .frame(maxWidth: .infinity)

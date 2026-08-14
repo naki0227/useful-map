@@ -42,7 +42,7 @@ public struct GoogleMapsURLBuilder: RouteDetailLinking {
 
     public func primaryURL(for option: RouteOption) -> URL? {
         guard let anchor = option.timeAnchor else { return nil }
-        let places = option.orderedPlaces
+        let places = Self.placesForGoogle(option)
         guard places.count >= 2, places.allSatisfy({ $0.coordinate.isValid }) else { return nil }
 
         let timestamp = GoogleTimestamp.value(for: anchor.date, timeZone: timeZone)
@@ -140,7 +140,7 @@ public struct GoogleMapsURLBuilder: RouteDetailLinking {
     // MARK: - Official fallback（公式 Maps URLs）
 
     public func officialURL(for option: RouteOption) -> URL? {
-        let places = option.orderedPlaces
+        let places = Self.placesForGoogle(option)
         guard let origin = places.first, let destination = places.last, places.count >= 2 else { return nil }
         guard origin.coordinate.isValid, destination.coordinate.isValid else { return nil }
 
@@ -158,6 +158,18 @@ public struct GoogleMapsURLBuilder: RouteDetailLinking {
         }
         components?.queryItems = items
         return components?.url
+    }
+
+    /// Google へ渡す地点列。
+    ///
+    /// Google マップは**公共交通で経由地に対応していない**（経由地を含めると
+    /// 「乗換案内を計算できませんでした」になる）。そのため公共交通のときは
+    /// 出発地と目的地だけを渡す。乗換駅は Google 側が自前で決める。
+    ///
+    /// 徒歩・車は経由地に対応しているのでそのまま渡す。
+    static func placesForGoogle(_ option: RouteOption) -> [Place] {
+        guard option.mode == .transit else { return option.orderedPlaces }
+        return [option.origin, option.destination]
     }
 
     static func coordinateValue(_ place: Place) -> String {

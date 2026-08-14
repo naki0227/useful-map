@@ -98,7 +98,7 @@ struct GoogleMapsURLBuilderTests {
     func primaryStructureIsConsistent() throws {
         let (builder, _) = makeBuilder()
         for waypoints in [[], [shinjukuGyoen]] {
-            let option = makeOption(departure: date(10, 32), waypoints: waypoints)
+            let option = makeOption(mode: .walking, departure: date(10, 32), waypoints: waypoints)
             let url = try #require(builder.primaryURL(for: option))
             let raw = try #require(url.absoluteString.components(separatedBy: "/data=").last)
             let tokens = try #require(GoogleMapsDataParam.parse(raw))
@@ -106,10 +106,11 @@ struct GoogleMapsURLBuilderTests {
         }
     }
 
-    @Test("経由地は地点ブロックが増え、ブロック長も追随する")
+    @Test("経由地は地点ブロックが増え、ブロック長も追随する（徒歩・車のみ）")
     func primaryWithWaypoint() throws {
+        // Google は公共交通で経由地に対応しないため、経由地の検証は徒歩で行う。
         let (builder, _) = makeBuilder()
-        let option = makeOption(departure: date(10, 32), waypoints: [shinjukuGyoen])
+        let option = makeOption(mode: .walking, departure: date(10, 32), waypoints: [shinjukuGyoen])
         let url = try #require(builder.primaryURL(for: option))
         let raw = try #require(url.absoluteString.components(separatedBy: "/data=").last)
         let tokens = try #require(GoogleMapsDataParam.parse(raw))
@@ -201,10 +202,11 @@ struct GoogleMapsURLBuilderTests {
         #expect(items["waypoints"] == nil)
     }
 
-    @Test("経由地は waypoints パラメータで渡す")
+    @Test("経由地は waypoints パラメータで渡す（徒歩・車のみ）")
     func officialURLWithWaypoints() throws {
         let (builder, _) = makeBuilder()
-        let url = try #require(builder.officialURL(for: makeOption(waypoints: [shinjukuGyoen])))
+        let url = try #require(builder.officialURL(for: makeOption(mode: .walking,
+                                                                   waypoints: [shinjukuGyoen])))
         let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
         let waypoints = components.queryItems?.first { $0.name == "waypoints" }?.value
         #expect(waypoints == "35.6852000,139.7100000")
@@ -285,5 +287,61 @@ struct GoogleTransportMappingTests {
         #expect(TransportMode.driving.googleDataModeCode == "0")
         #expect(TransportMode.walking.googleDataModeCode == "2")
         #expect(TransportMode.transit.googleDataModeCode == "3")
+    }
+}
+
+@Suite("Google の経由地制約")
+struct GoogleWaypointConstraintTests {
+    private let tokyoTimeZone = TimeZone(identifier: "Asia/Tokyo")!
+    private let origin = Place(name: "自宅", latitude: 35.7029, longitude: 139.7649)
+    private let station = Place(name: "御茶ノ水駅", latitude: 35.6993, longitude: 139.7649)
+    private let destination = Place(name: "東京駅", latitude: 35.6812362, longitude: 139.7671248)
+
+    private func option(mode: TransportMode) -> RouteOption {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = tokyoTimeZone
+        let date = calendar.date(from: DateComponents(year: 2026, month: 8, day: 14,
+                                                     hour: 10, minute: 32))!
+        let query = RouteQuery(destination: destination,
+                               waypoints: [station],
+                               transportMode: mode,
+                               timePreference: .departAt,
+                               requestedDate: date)
+        return RouteOption(query: query, origin: origin, mode: mode,
+                           expectedTravelTime: 22 * 60, departureDate: date)
+    }
+
+    private func makeBuilder() -> GoogleMapsURLBuilder {
+        GoogleMapsURLBuilder(timeZone: tokyoTimeZone, opener: RecordingURLOpener())
+    }
+
+    @Test("公共交通では経由地を渡さない（Google が乗換案内を計算できなくなるため）")
+    func dropsWaypointsForTransit() throws {
+        let places = GoogleMapsURLBuilder.placesForGoogle(option(mode: .transit))
+        #expect(places.map(\.name) == ["自宅", "東京駅"])
+
+        let url = try #require(makeBuilder().primaryURL(for: option(mode: .transit)))
+        #expect(!url.absoluteString.contains("139.7649000!2d35.6993000"),
+                "経由地の座標ブロックが入っている")
+        // 地点ブロックは 2 つ ×6 + 時刻 4 + モード 1 = 17。
+        let raw = try #require(url.absoluteString.components(separatedBy: "/data=").last)
+        let tokens = try #require(GoogleMapsDataParam.parse(raw))
+        #expect(tokens[1] == DataToken(group: 4, kind: "m", value: "17"))
+    }
+
+    @Test("公式 URL でも公共交通では waypoints を付けない")
+    func officialURLDropsWaypointsForTransit() throws {
+        let url = try #require(makeBuilder().officialURL(for: option(mode: .transit)))
+        #expect(!url.absoluteString.contains("waypoints"))
+    }
+
+    @Test("徒歩・車は経由地に対応しているのでそのまま渡す",
+          arguments: [TransportMode.walking, TransportMode.driving])
+    func keepsWaypointsForOtherModes(mode: TransportMode) throws {
+        let places = GoogleMapsURLBuilder.placesForGoogle(option(mode: mode))
+        #expect(places.map(\.name) == ["自宅", "御茶ノ水駅", "東京駅"])
+
+        let url = try #require(makeBuilder().officialURL(for: option(mode: mode)))
+        #expect(url.absoluteString.contains("waypoints"))
     }
 }

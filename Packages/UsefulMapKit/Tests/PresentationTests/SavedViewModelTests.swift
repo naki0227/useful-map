@@ -71,8 +71,8 @@ struct SavedViewModelTests {
         #expect(viewModel.recentSearches.map(\.place.name) == ["東京駅"])
     }
 
-    @Test("履歴から経路条件を復元する")
-    func queryFromHistory() {
+    @Test("履歴から経路プランを復元する")
+    func planFromHistory() {
         let store = FakeStore()
         let viewModel = SavedViewModel(dependencies: TestEnvironment.make(store: store))
         let route = RecentRoute(origin: .place(TestFixtures.shinjuku),
@@ -80,12 +80,26 @@ struct SavedViewModelTests {
                                 transportMode: .driving,
                                 usedAt: TestFixtures.now)
 
-        let query = viewModel.query(from: route)
+        let plan = viewModel.plan(from: route)
 
-        #expect(query.origin == .place(TestFixtures.shinjuku))
-        #expect(query.destination == TestFixtures.tokyo)
-        #expect(query.transportMode == .driving)
-        #expect(query.timePreference == .now)
+        #expect(plan.origin.place == TestFixtures.shinjuku)
+        #expect(plan.destination.place == TestFixtures.tokyo)
+        #expect(plan.modes == [.driving])
+        #expect(plan.timePreference == .now)
+    }
+
+    @Test("現在地発の履歴は現在地として復元する")
+    func planFromCurrentLocationHistory() {
+        let viewModel = SavedViewModel(dependencies: TestEnvironment.make())
+        let route = RecentRoute(origin: .currentLocation,
+                                destination: TestFixtures.tokyo,
+                                transportMode: .transit,
+                                usedAt: TestFixtures.now)
+
+        let plan = viewModel.plan(from: route)
+
+        #expect(plan.origin.isCurrentLocation)
+        #expect(plan.destination.place == TestFixtures.tokyo)
     }
 }
 

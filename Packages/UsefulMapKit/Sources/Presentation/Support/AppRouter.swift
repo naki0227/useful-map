@@ -7,23 +7,20 @@ import MapKit
 public final class AppRouter: ObservableObject {
     public enum Tab: String, Hashable, CaseIterable, Identifiable {
         case map
-        case route
         case saved
 
         public var id: String { rawValue }
 
         public var displayName: String {
             switch self {
-            case .map: return "地図"
-            case .route: return "経路"
-            case .saved: return "保存"
+            case .map: return L10n.string("tab.map")
+            case .saved: return L10n.string("tab.saved")
             }
         }
 
         public var symbolName: String {
             switch self {
             case .map: return "map"
-            case .route: return "arrow.triangle.swap"
             case .saved: return "bookmark"
             }
         }
@@ -34,8 +31,11 @@ public final class AppRouter: ObservableObject {
     @Published public var detailPlace: Place?
     /// 検索シート（S02）の表示状態。
     @Published public var isSearchPresented = false
-    /// 経路タブ（S04）で比較中の条件。
-    @Published public var activeQuery: RouteQuery?
+    /// 経路を編集・表示中の ViewModel。nil なら経路は開いていない。
+    /// 地図画面の上下のシートがこれを見て表示を切り替える。
+    @Published public var planViewModel: RoutePlanViewModel?
+    /// 「地図で選ぶ」中に、どのノードへ反映するか。
+    @Published public var mapPickTarget: Int?
 
     public init() {}
 
@@ -44,10 +44,20 @@ public final class AppRouter: ObservableObject {
         isSearchPresented = false
     }
 
-    public func showRoute(_ query: RouteQuery) {
-        activeQuery = query
+    /// 経路を開く。地図はそのままで、上下のシートだけが切り替わる。
+    public func showRoute(_ plan: RoutePlan, dependencies: AppDependencies) {
+        let viewModel = RoutePlanViewModel(plan: plan, dependencies: dependencies)
+        planViewModel = viewModel
         detailPlace = nil
-        selectedTab = .route
+        isSearchPresented = false
+        selectedTab = .map
+        viewModel.rebuild(preset: plan.modes.first ?? .transit)
+    }
+
+    /// 経路を閉じて地図に戻る。
+    public func closeRoute() {
+        planViewModel = nil
+        mapPickTarget = nil
     }
 }
 

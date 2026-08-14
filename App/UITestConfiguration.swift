@@ -41,8 +41,10 @@ enum UITestConfiguration {
     static func makeDependencies() -> AppDependencies {
         let opener = StubURLOpener(rejectsPrimary: scenario == .primaryURLBroken)
         return AppDependencies(searchService: StubPlaceSearchService(),
-                               routeService: StubRouteService(scenario: scenario, now: fixedNow),
+                               planner: RoutePlanner(stops: StubStopLocator(scenario: scenario),
+                                                     routing: StubSegmentRouting(scenario: scenario)),
                                locationService: StubLocationService(),
+                               placeResolver: StubPlaceResolver(),
                                detailLinking: GoogleMapsURLBuilder(timeZone: Fixtures.timeZone, opener: opener),
                                store: InMemoryLocalStore(),
                                now: { fixedNow },
@@ -53,8 +55,13 @@ enum UITestConfiguration {
     enum Fixtures {
         static let timeZone = TimeZone(identifier: "Asia/Tokyo") ?? .current
 
-        static let currentLocation = Coordinate(latitude: 35.6993, longitude: 139.7649)
+        /// 御茶ノ水駅から約 400m 北。駅そのものではないので、徒歩区間が挟まる。
+        static let currentLocation = Coordinate(latitude: 35.7029, longitude: 139.7649)
 
+        static let ochanomizuStation = Place(name: "御茶ノ水駅",
+                                             latitude: 35.6993,
+                                             longitude: 139.7649,
+                                             address: "東京都千代田区神田駿河台2丁目")
         static let tokyoStation = Place(name: "東京駅",
                                         latitude: 35.6812362,
                                         longitude: 139.7671248,
@@ -85,50 +92,57 @@ struct StubPlaceSearchService: PlaceSearching {
     }
 }
 
-struct StubRouteService: RouteProviding {
-    let scenario: UITestConfiguration.Scenario
-    let now: Date
-
-    func routes(for query: RouteQuery, resolvedOrigin: Place) async throws -> [RouteOption] {
-        if scenario == .noRoutes { throw RouteError.noRoutesFound }
-
-        switch query.transportMode {
-        case .transit:
-            // 10:32 発 → 10:54 着（22 分）
-            let departure = now.addingTimeInterval(32 * 60)
-            return [RouteOption(id: "transit-0",
-                                query: query,
-                                origin: resolvedOrigin,
-                                mode: .transit,
-                                expectedTravelTime: 22 * 60,
-                                departureDate: departure,
-                                arrivalDate: departure.addingTimeInterval(22 * 60),
-                                distance: 6_200)]
-        case .walking:
-            return [RouteOption(id: "walking-0",
-                                query: query,
-                                origin: resolvedOrigin,
-                                mode: .walking,
-                                expectedTravelTime: 62 * 60,
-                                distance: 4_800,
-                                geometry: [resolvedOrigin.coordinate, query.destination.coordinate])]
-        case .driving:
-            return [RouteOption(id: "driving-0",
-                                query: query,
-                                origin: resolvedOrigin,
-                                mode: .driving,
-                                expectedTravelTime: 26 * 60,
-                                distance: 7_100,
-                                geometry: [resolvedOrigin.coordinate, query.destination.coordinate])]
-        }
-    }
-}
-
 final class StubLocationService: LocationProviding {
     var authorizationStatus: LocationAuthorizationStatus { .authorized }
     func requestAuthorization() {}
     func currentCoordinate() async throws -> Coordinate {
         UITestConfiguration.Fixtures.currentLocation
+    }
+}
+
+/// 固定の乗降地点を返すロケータ。
+struct StubStopLocator: TransitStopLocating {
+    let scenario: UITestConfiguration.Scenario
+
+    func stops(near coordinate: Coordinate, within meters: Double, limit: Int) async throws -> [Place] {
+        guard scenario != .noRoutes else { return [] }
+        let candidates = [UITestConfiguration.Fixtures.ochanomizuStation,
+                          UITestConfiguration.Fixtures.tokyoStation]
+        return candidates
+            .filter { $0.coordinate.distance(to: coordinate) <= meters }
+            .sorted { $0.coordinate.distance(to: coordinate) < $1.coordinate.distance(to: coordinate) }
+    }
+}
+
+/// 区間ごとに固定の所要時間を返す。
+struct StubSegmentRouting: SegmentRouting {
+    let scenario: UITestConfiguration.Scenario
+
+    func leg(from: Place, to: Place, mode: TransportMode,
+             timePreference: TimePreference, requestedDate: Date?) async throws -> RouteLeg {
+        if scenario == .noRoutes { throw RouteError.noRoutesFound }
+        let distance = from.coordinate.distance(to: to.coordinate)
+        switch mode {
+        case .walking:
+            return RouteLeg(expectedTravelTime: 6 * 60, distance: distance,
+                            geometry: [from.coordinate, to.coordinate])
+        case .transit:
+            let departure = UITestConfiguration.fixedNow.addingTimeInterval(32 * 60)
+            return RouteLeg(expectedTravelTime: 22 * 60,
+                            departureDate: departure,
+                            arrivalDate: departure.addingTimeInterval(22 * 60),
+                            distance: distance)
+        case .driving:
+            return RouteLeg(expectedTravelTime: 26 * 60, distance: distance,
+                            geometry: [from.coordinate, to.coordinate])
+        }
+    }
+}
+
+/// 地図タップで選んだ座標を、名前つきの地点にする。
+struct StubPlaceResolver: PlaceResolving {
+    func place(at coordinate: Coordinate) async -> Place {
+        Place(name: "地図で選んだ地点", coordinate: coordinate)
     }
 }
 

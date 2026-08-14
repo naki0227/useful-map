@@ -34,14 +34,43 @@ contract-watch/                     Playwright による外部 URL 仕様の契�
 
 ### 画面
 
-| ID | 画面 | 実装 |
-|---|---|---|
-| S01 | 地図ホーム | `Presentation/Map/MapHomeView.swift` |
-| S02 | 検索 | `Presentation/Search/SearchView.swift` |
-| S03 | 場所詳細 | `Presentation/PlaceDetail/PlaceDetailView.swift` |
-| S04 | 経路比較 | `Presentation/Route/RouteCompareView.swift` |
-| S05 | 経路編集 | `Presentation/Route/RouteEditorView.swift` |
-| S06 | 保存・履歴 | `Presentation/Saved/SavedView.swift` |
+タブは「地図」と「保存」だけです。経路は地図画面の上下のシートで扱うため、
+経路を見るためにタブを移動しません（地図の文脈が切れないようにするため）。
+
+| 画面 | 実装 |
+|---|---|
+| 地図（検索・経路・場所詳細のすべてを内包） | `Presentation/Map/MapHomeView.swift` |
+| 経路の連鎖編集（上のシート） | `Presentation/Route/RoutePlanChainView.swift` |
+| 経路の要約（下のシート） | `Presentation/Route/RoutePlanSummaryView.swift` |
+| 地点のインライン編集 | `Presentation/Route/InlinePlaceField.swift` |
+| 検索 | `Presentation/Search/SearchView.swift` |
+| 場所詳細 | `Presentation/PlaceDetail/PlaceDetailView.swift` |
+| 保存・履歴 | `Presentation/Saved/SavedView.swift` |
+
+### 経路の扱い（区間分割）
+
+MapKit は公共交通について合計所要時間しか返さないため、「どこで乗ってどこで降りるか」は
+アプリ側で組み立てます。
+
+```
+◉ 自宅
+│ 🚶 6分  10:26-10:32      [↗]   ← アイコンを押すと手段が切り替わる／[↗] で区間の詳細へ
+▼
+🚉 御茶ノ水駅  推定
+│ 🚋 22分 10:32-10:54      [↗]   ← 時刻を押すと便を選び直せる
+▼
+📍 東京駅
+[⇅] [◎] [＋]                [🚶 ふつう]
+```
+
+- 乗降地点は最寄りを推定して差し込みます（`RoutePlanBuilder`）
+- 徒歩が長い区間は、公共交通を使う形へ**再帰的に**分割します。速くならない場合は分割しません
+- 公共交通の区間も、ETA を判定器にして中の乗換地点を推定し分割します
+  （`ETA(A→M) + ETA(M→B)` が `ETA(A→B)` とほぼ等しければ経路上とみなす）
+- ユーザーが変えた区間は**ロック**され、プリセットや自動分割で上書きされません
+- 便を選ぶと所要時間を指紋として記録し、再取得時に同じ経路へ戻します。
+  戻せない場合は勝手に置き換えず「ここが違います、更新しますか？」と差分を提示します
+- 徒歩の速さは ゆっくり / ふつう / はやい をボタン 1 つで切り替えられます
 
 保存地点には `自宅 / 学校 / 保存だけする` のラベルを付けられます（S03 の「保存」でラベルを選択、
 S06 の「・・・」メニューで付け替え・解除）。ラベル付きの地点は地図ホーム上部のチップに並びます。
@@ -88,9 +117,9 @@ open UsefulMap.xcodeproj
 ## テスト
 
 ```bash
-make unit          # Swift Testing 195 件（単体 + アーキテクチャ + ローカライズ）
+make unit          # Swift Testing 251 件（単体 + アーキテクチャ + ローカライズ）
 make contract-unit # 契約監視の単体テスト 19 件（ネットワーク不要）
-make e2e           # XCUITest 7 本（シミュレータ内で完結）
+make e2e           # XCUITest 8 本（シミュレータ内で完結）
 make all           # PR 前の一式（+ SwiftLint, jscpd）
 ```
 
@@ -102,7 +131,7 @@ make all           # PR 前の一式（+ SwiftLint, jscpd）
 | アーキテクチャ | `Tests/ArchitectureTests` | 依存方向、SDK 範囲、内部 URL 形式の隔離、ViewModel の MainActor |
 | ローカライズ | `PresentationTests/LocalizationTests` | 5 言語の翻訳漏れ・書式指定子・ロケール解決 |
 | 契約（Swift ↔ 監視） | `DataTests/URLFormatContractTests` | Swift の生成結果と `contract-watch/format.json` の一致 |
-| E2E（XCUITest） | `Tests/UITests` | 検索→比較、モード切替、時刻付き遷移、fallback、0 件、保存・履歴、ラベル付け |
+| E2E（XCUITest） | `Tests/UITests` | 検索→区間分割、区間のモード切替、インライン編集、徒歩ペース、時刻付き遷移、fallback、0 件、保存・履歴 |
 | 契約監視（Playwright） | `contract-watch/tests` | 実際に Google Maps を開いて条件が保たれるか |
 
 E2E は起動引数 `-UITestMode` で MapKit / Core Location / 外部遷移をスタブへ差し替えるため、
@@ -113,6 +142,7 @@ E2E は起動引数 `-UITestMode` で MapKit / Core Location / 外部遷移を�
 公共交通の「詳細」を押すと、地点（名称・緯度経度）と選択した経路の時刻条件から
 Google Maps の URL を機械生成します。Google の API へは一切通信しません。
 
+- **区間ごと**に開きます。区間は必ず 2 地点なので、Google が公共交通の経由地を扱えない制約に当たりません
 - **Primary**: 時刻付きの内部 `data=` 形式（非公開仕様）。`!6e0` 出発指定 / `!6e1` 到着指定、`!8j` に時刻。
 - **Fallback**: 公式 Maps URLs の Directions 形式。時刻条件は保証されませんが地点と移動手段は引き継ぎます。
 
@@ -177,8 +207,12 @@ SwiftLint にはカスタムルール `no_google_url_outside_builder`（内部 U
 
 ## 実装上の注意
 
-- `RouteOption` は仕様書の `mapRoute: MKRoute` の代わりに描画用の座標列 `geometry` を持ちます。
-  Domain を MapKit から独立させるためで、変換は Infrastructure が行います。
+- 仕様書の `RouteOption`（1 候補 = 1 経路）ではなく、`RoutePlan`（ノードと区間の連なり）で経路を扱います。
+  区間ごとに移動手段を変えたり、乗降地点を選び直したりできるようにするためです。
+  `RouteOption` は Google へ 1 区間を委譲するときの境界の形として残しています。
+- `MKRoute` の代わりに描画用の座標列 `geometry` を持ちます。Domain を MapKit から独立させるためで、
+  変換は Infrastructure が行います。
+- **Google マップは公共交通で経由地に対応していません**。そのため詳細は区間ごとに開きます。
 - MapKit の公共交通は `MKDirections.calculate()` が経路を返さないため `calculateETA()` を使い、
   出発時刻・到着時刻・所要時間だけを取得します。運賃・乗換は取得も推定もしません。
 - 経由地は MKDirections が直接対応しないため、区間ごとに計算して合算します。
