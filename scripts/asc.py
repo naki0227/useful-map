@@ -371,6 +371,156 @@ def cmd_screenshots(client: Client) -> None:
         print(f"{display_type}: {len(images)} 枚")
 
 
+# 年齢制限の回答。すべて該当なしで 4+ になる。
+#
+# このアプリは地図と所要時間しか出さない。利用者どうしのやり取りも、
+# 投稿の共有も、広告も、アプリ内購入も無い。表示する文章はすべて自前の
+# ローカライズ文字列で、外部から取り込んだ本文を載せる箇所が無い。
+AGE_RATING = {
+    # 表現の強さを聞く設問。NONE / INFREQUENT_OR_MILD / FREQUENT_OR_INTENSE
+    "violenceCartoonOrFantasy": "NONE",
+    "violenceRealistic": "NONE",
+    "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+    "profanityOrCrudeHumor": "NONE",
+    "matureOrSuggestiveThemes": "NONE",
+    "horrorOrFearThemes": "NONE",
+    "medicalOrTreatmentInformation": "NONE",
+    "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+    "sexualContentOrNudity": "NONE",
+    "sexualContentGraphicAndNudity": "NONE",
+    "gamblingSimulated": "NONE",
+    "contests": "NONE",
+    "gunsOrOtherWeapons": "NONE",
+
+    # 機能の有無を聞く設問。
+    "gambling": False,
+    "lootBox": False,
+    "advertising": False,
+    "messagingAndChat": False,
+    "socialMedia": False,
+    # 検索欄に文字を打つが、それが誰かに見えることはない。
+    "userGeneratedContent": False,
+    # 「詳細」は Google マップを開いて離れるだけで、アプリ内に
+    # 任意のサイトを開けるブラウザは持たない。
+    "unrestrictedWebAccess": False,
+    "parentalControls": False,
+    # 健康・ウェルネスの話題は扱わない。
+    "healthOrWellnessTopics": False,
+
+    # 年齢確認の仕組みは持たない（誰でもそのまま使える）。
+    "ageAssurance": False,
+
+    # 子ども向けカテゴリには出さない。
+    "kidsAgeBand": None,
+}
+
+
+def cmd_declare(client: Client) -> None:
+    """年齢制限と権利表明を答える。"""
+    bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
+    app = find_app(client, bundle_id)
+    if app is None:
+        raise SystemExit(f"{bundle_id} のアプリレコードがありません")
+
+    # 第三者のコンテンツを含まない。地図データは Apple、遷移先は Google の公開 URL。
+    client.patch(f"/v1/apps/{app['id']}", {
+        "data": {"type": "apps", "id": app["id"],
+                 "attributes": {"contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT"}}
+    })
+    print("権利表明: 第三者コンテンツを含まない")
+
+    info = client.get(f"/v1/apps/{app['id']}/appInfos")["data"][0]
+    declaration = client.get(f"/v1/appInfos/{info['id']}/ageRatingDeclaration")["data"]
+    client.patch(f"/v1/ageRatingDeclarations/{declaration['id']}", {
+        "data": {"type": "ageRatingDeclarations", "id": declaration["id"],
+                 "attributes": AGE_RATING}
+    })
+    refreshed = client.get(f"/v1/appInfos/{info['id']}")["data"]
+    print(f"年齢制限: {refreshed['attributes']['appStoreAgeRating']}")
+
+
+def cmd_availability(client: Client) -> None:
+    """配信地域を設定する。既定は全地域。
+
+    日本向けの機能が中心だが、Apple の公共交通データがある地域なら同じように動くし、
+    徒歩と車はどこでも動く。地域を絞る理由が無いので全地域に出す。
+    """
+    bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
+    app = find_app(client, bundle_id)
+    if app is None:
+        raise SystemExit(f"{bundle_id} のアプリレコードがありません")
+
+    territories = []
+    url = "/v1/territories?limit=200"
+    while url:
+        page = client.get(url)
+        territories += [item["id"] for item in page["data"]]
+        url = page.get("links", {}).get("next")
+
+    # 同じリクエストの中で作る要素は、実 ID ではなく `${local-id}` で参照する。
+    def local(code: str) -> str:
+        return "${" + code + "}"
+
+    client.post("/v2/appAvailabilities", {
+        "data": {
+            "type": "appAvailabilities",
+            "attributes": {"availableInNewTerritories": True},
+            "relationships": {
+                "app": {"data": {"type": "apps", "id": app["id"]}},
+                "territoryAvailabilities": {
+                    "data": [{"type": "territoryAvailabilities", "id": local(code)}
+                             for code in territories]
+                },
+            },
+        },
+        "included": [
+            {"type": "territoryAvailabilities", "id": local(code),
+             "attributes": {"available": True},
+             "relationships": {"territory": {"data": {"type": "territories", "id": code}}}}
+            for code in territories
+        ],
+    })
+    print(f"配信地域: {len(territories)} 地域を有効にしました")
+
+
+def cmd_build(client: Client) -> None:
+    """処理の終わった最新ビルドを、編集中のバージョンへ紐付ける。
+
+    アップロードしただけではバージョンに付かない。Web で選ぶのと同じ操作を API でやる。
+    """
+    bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
+    app = find_app(client, bundle_id)
+    if app is None:
+        raise SystemExit(f"{bundle_id} のアプリレコードがありません")
+    version = editable_version(client, app["id"])
+    version_id = version["id"]
+
+    # 処理中のビルドは紐付けられないので、VALID になるまで待つ。
+    deadline = time.time() + 20 * 60
+    while True:
+        builds = client.get("/v1/builds", params={
+            "filter[app]": app["id"],
+            "filter[preReleaseVersion.version]": version["attributes"]["versionString"],
+            "sort": "-uploadedDate", "limit": 10,
+        })["data"]
+        ready = [b for b in builds if b["attributes"]["processingState"] == "VALID"]
+        if ready:
+            break
+        pending = [b["attributes"]["processingState"] for b in builds]
+        if time.time() > deadline:
+            raise SystemExit(f"ビルドが VALID になりません: {pending or 'ビルドが見つかりません'}")
+        print(f"  ビルドの処理待ち {pending or '(まだ届いていません)'}")
+        time.sleep(30)
+
+    build = ready[0]
+    client.patch(f"/v1/appStoreVersions/{version_id}", {
+        "data": {"type": "appStoreVersions", "id": version_id,
+                 "relationships": {"build": {"data": {"type": "builds", "id": build["id"]}}}}
+    })
+    print(f"ビルド {build['attributes']['version']} を "
+          f"{version['attributes']['versionString']} に紐付けました")
+
+
 def cmd_check(client: Client) -> None:
     """投入する内容を、送らずに確認する。"""
     metadata = load_metadata()
@@ -385,7 +535,8 @@ def cmd_check(client: Client) -> None:
 
 
 COMMANDS = {"apps": cmd_apps, "status": cmd_status, "check": cmd_check,
-            "push": cmd_push, "screenshots": cmd_screenshots}
+            "push": cmd_push, "screenshots": cmd_screenshots, "build": cmd_build,
+            "declare": cmd_declare, "availability": cmd_availability}
 
 if __name__ == "__main__":
     name = sys.argv[1] if len(sys.argv) > 1 else "status"

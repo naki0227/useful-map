@@ -17,7 +17,7 @@ SCREENSHOT_DIR := artifacts/screenshots
 SIGNING_OVERRIDES := CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
 	CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM)
 
-.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run screenshots archive export-ipa upload asc-venv asc-status asc-apps asc-check asc-push asc-screenshots quality all clean
+.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run screenshots archive export-ipa upload asc-venv asc-status asc-apps asc-check asc-push asc-screenshots asc-build quality all clean
 
 help: ## 使えるターゲット一覧
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -150,6 +150,9 @@ asc-push: check-asc ## 説明文・キーワード・審査メモを 5 言語ぶ
 
 asc-screenshots: check-asc ## スクリーンショットを差し替える
 	$(ASC_PY) scripts/asc.py screenshots
+
+asc-build: check-asc ## 処理の終わったビルドをバージョンへ紐付ける
+	$(ASC_PY) scripts/asc.py build
 
 upload: export-ipa ## .ipa を App Store Connect へ上げる
 	@test -n "$(ASC_KEY_ID)" || (echo "ASC_KEY_ID が未設定です" && exit 1)
