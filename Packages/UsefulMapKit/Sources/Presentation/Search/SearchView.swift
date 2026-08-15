@@ -11,8 +11,9 @@ public struct SearchView: View {
     public init(dependencies: AppDependencies,
                 center: Coordinate?,
                 onSelect: @escaping (Place) -> Void) {
-        _viewModel = StateObject(wrappedValue: SearchViewModel(dependencies: dependencies,
-                                                              centerProvider: { center }))
+        let searchViewModel = SearchViewModel(dependencies: dependencies,
+                                              centerProvider: { center })
+        _viewModel = StateObject(wrappedValue: searchViewModel)
         self.onSelect = onSelect
     }
 

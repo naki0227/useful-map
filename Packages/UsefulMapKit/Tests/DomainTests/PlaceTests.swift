@@ -31,9 +31,9 @@ struct PlaceTests {
 
     @Test("住所だけが違う同一地点は同じ ID（履歴の重複を防ぐ）")
     func identityIgnoresAddress() {
-        let a = Place(name: "東京駅", latitude: 35.68, longitude: 139.76, address: "丸の内")
-        let b = Place(name: "東京駅", latitude: 35.68, longitude: 139.76, address: nil)
-        #expect(a.id == b.id)
+        let withAddress = Place(name: "東京駅", latitude: 35.68, longitude: 139.76, address: "丸の内")
+        let withoutAddress = Place(name: "東京駅", latitude: 35.68, longitude: 139.76, address: nil)
+        #expect(withAddress.id == withoutAddress.id)
     }
 
     @Test("経路に使えるのは名称と妥当な座標が揃った地点だけ")

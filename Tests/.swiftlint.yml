@@ -1,0 +1,25 @@
+# テスト固有の緩和。ルート設定を継承したうえで、ここだけ上書きする。
+disabled_rules:
+  # 失敗したら即座に落ちてほしいので、テストでは強制アンラップの方が意図が明確になる。
+  - force_unwrapping
+  # XCTestCase は setUp で組み立てるため `var app: XCUIApplication!` が定石。
+  - implicitly_unwrapped_optional
+
+# テストは 1 ファイルに 1 つの対象をまとめる方が読みやすいので、長さの上限を緩める。
+file_length:
+  warning: 700
+  error: 900
+  ignore_comment_only_lines: true
+
+type_body_length:
+  warning: 700
+  error: 900
+
+function_body_length:
+  warning: 120
+  error: 200
+
+# 表形式のテストデータで引数が多くなるのは許容する。
+function_parameter_count:
+  warning: 8
+  error: 10

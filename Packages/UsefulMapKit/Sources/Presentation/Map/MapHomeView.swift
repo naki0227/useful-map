@@ -72,8 +72,9 @@ public struct MapHomeView: View {
                     return
                 }
                 guard let coordinate = proxy.convert(position, from: .local) else { return }
-                Task { await pickPlace(at: Coordinate(latitude: coordinate.latitude,
-                                                      longitude: coordinate.longitude)) }
+                let picked = Coordinate(latitude: coordinate.latitude,
+                                        longitude: coordinate.longitude)
+                Task { await pickPlace(at: picked) }
             }
         }
     }

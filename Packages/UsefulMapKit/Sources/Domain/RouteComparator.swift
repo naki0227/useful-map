@@ -12,8 +12,8 @@ public enum RouteComparator {
                 return lhs.expectedTravelTime < rhs.expectedTravelTime
             }
             switch (lhs.departureDate, rhs.departureDate) {
-            case let (l?, r?) where l != r:
-                return l < r
+            case let (left?, right?) where left != right:
+                return left < right
             case (nil, _?):
                 return false
             case (_?, nil):

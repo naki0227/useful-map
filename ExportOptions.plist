@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Store Connect へ出すための書き出し設定。make export-ipa が使う。 -->
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>teamID</key>
+	<string>X97ZJZ42VZ</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<!-- ビットコードは廃止済み。シンボルは送って、クラッシュを読めるようにする。 -->
+	<key>uploadSymbols</key>
+	<true/>
+	<!-- アップロードは make upload で明示的に行うため、書き出しでは止める。 -->
+	<key>destination</key>
+	<string>export</string>
+</dict>
+</plist>

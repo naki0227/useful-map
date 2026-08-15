@@ -34,9 +34,10 @@ struct RoutePlanChainView: View {
             Divider().padding(.vertical, 4)
             TimeConditionPicker(preference: viewModel.plan.timePreference,
                                 date: viewModel.plan.requestedDate,
-                                now: { Date() }) { preference, date in
-                viewModel.setTimePreference(preference, date: date)
-            }
+                                now: { Date() },
+                                onChange: { preference, date in
+                                    viewModel.setTimePreference(preference, date: date)
+                                })
             controls
         }
         .padding(14)
@@ -163,7 +164,8 @@ struct RoutePlanChainView: View {
                             .font(.footnote)
                             .frame(width: 28, height: 28)
                             .background(.background, in: Circle())
-                            .overlay(Circle().stroke(Color.accentColor, lineWidth: viewModel.isLocked(at: index) ? 2 : 1))
+                            .overlay(Circle().stroke(Color.accentColor,
+                                                     lineWidth: viewModel.isLocked(at: index) ? 2 : 1))
                             .foregroundStyle(Color.accentColor)
                     }
                     .buttonStyle(.plain)

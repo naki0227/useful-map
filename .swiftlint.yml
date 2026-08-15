@@ -26,7 +26,9 @@ opt_in_rules:
   - implicitly_unwrapped_optional
   - last_where
   - literal_expression_end_indentation
-  - multiline_arguments
+  # multiline_arguments は入れない。第 1 引数を呼び出し行に置いて以降を縦に揃える
+  # 書き方を禁止するが、それはこのコードベースの既定の書き方であり、
+  # 同時に有効にしている vertical_parameter_alignment_on_call が前提とする形でもある。
   - operator_usage_whitespace
   - overridden_super_call
   - prefer_self_type_over_type_of_self
@@ -75,9 +77,8 @@ identifier_name:
 nesting:
   type_level: 2
 
-# テストでは強制アンラップや長いメソッドを許す（可読性を優先する）。
-force_unwrapping:
-  severity: warning
+# テスト側の緩和は Tests/.swiftlint.yml と Packages/UsefulMapKit/Tests/.swiftlint.yml に置く。
+# CI は --strict で回すため、ここで severity を warning に下げても失敗は避けられない。
 
 custom_rules:
   no_google_url_outside_builder:
@@ -85,7 +86,7 @@ custom_rules:
     regex: '(!8j|!7e2|/maps/dir/)'
     match_kinds:
       - string
-    excluded: ".*(GoogleMapsURLBuilder|GoogleMapsDataParam|GoogleTimestamp|Tests|UITestConfiguration).*"
+    excluded: ".*(GoogleMapsURLBuilder|GoogleMapsDataParam|GoogleTimestamp|GoogleMapsURLFormat\\+Generated|Tests|UITestConfiguration).*"
     message: "Google Maps 内部 URL 形式は GoogleMapsURLBuilder 系にだけ置くこと（非機能要件 14）"
     severity: error
 

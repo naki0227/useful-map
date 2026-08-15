@@ -18,9 +18,10 @@ struct RouteDraftView: View {
             Divider()
             TimeConditionPicker(preference: viewModel.draftTimePreference,
                                 date: viewModel.draftDate,
-                                now: { Date() }) { preference, date in
-                viewModel.setDraftTimePreference(preference, date: date)
-            }
+                                now: { Date() },
+                                onChange: { preference, date in
+                                    viewModel.setDraftTimePreference(preference, date: date)
+                                })
         }
         .padding(14)
         .background(.background, in: RoundedRectangle(cornerRadius: 16))

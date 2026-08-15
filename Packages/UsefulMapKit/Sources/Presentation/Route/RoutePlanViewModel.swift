@@ -7,25 +7,6 @@ import Foundation
 /// 取得は編集のたびに走るため、直前のリクエストは破棄する。
 @MainActor
 public final class RoutePlanViewModel: ObservableObject {
-    /// 上部タブのプリセット。押すと全区間をその手段で組み直す。
-    public enum Preset: Hashable, Identifiable, CaseIterable {
-        case transit
-        case walking
-        case driving
-
-        public var id: String { mode.rawValue }
-        public var mode: TransportMode {
-            switch self {
-            case .transit: return .transit
-            case .walking: return .walking
-            case .driving: return .driving
-            }
-        }
-
-        public var displayName: String { mode.displayName }
-        public var symbolName: String { mode.symbolName }
-    }
-
     @Published public private(set) var plan: RoutePlan
     @Published public private(set) var isLoading = false
     @Published public private(set) var errorMessage: String?
@@ -63,48 +44,6 @@ public final class RoutePlanViewModel: ObservableObject {
     }
 
     deinit { loadTask?.cancel() }
-
-    // MARK: - 表示
-
-    public var segments: [RouteSegment] { plan.segments }
-    public var nodes: [RouteNode] { plan.nodes }
-    public var schedule: [(departure: Date, arrival: Date)?] { plan.schedule() }
-
-    public var totalTravelTime: TimeInterval? { plan.totalTravelTime }
-
-    /// 区間ごとに Google へ委譲できる。
-    /// 各区間は 2 地点なので、Google が経由地つき公共交通を扱えない制約にも当たらない。
-    public func canOpenDetail(at index: Int) -> Bool {
-        plan.segments.indices.contains(index)
-    }
-
-    public func isLocked(at index: Int) -> Bool { plan.isLocked(at: index) }
-
-    public func pendingUpdate(at index: Int) -> PendingSegmentUpdate? { plan.pendingUpdate(at: index) }
-
-    /// 区間の発着時刻。固定した便を基準に前後へ伸ばした時刻表を使う。
-    public func timeRange(at index: Int) -> String? {
-        let table = schedule
-        guard table.indices.contains(index), let entry = table[index] else { return nil }
-        return Formatters.timeRange(departure: entry.departure, arrival: entry.arrival)
-    }
-
-    /// 現在のプリセット（全区間が同じ手段のときだけ確定する）。
-    public var activePreset: Preset? {
-        guard let first = plan.modes.first, plan.modes.allSatisfy({ $0 == first }) else { return nil }
-        return Preset.allCases.first { $0.mode == first }
-    }
-
-    /// 経路全体の発着時刻。
-    public var overallTimeRange: String? {
-        let table = schedule
-        guard let first = table.first ?? nil, let last = table.last ?? nil else { return nil }
-        return Formatters.timeRange(departure: first.departure, arrival: last.arrival)
-    }
-
-    public var title: String {
-        "\(plan.origin.displayName) → \(plan.destination.displayName)"
-    }
 
     // MARK: - 取得
 
@@ -399,7 +338,7 @@ public final class RoutePlanViewModel: ObservableObject {
         let list = plan.segments
         guard list.indices.contains(index) else { return nil }
         let segment = list[index]
-        let entry = schedule[safeIndex: index] ?? nil
+        let entry = schedule[safeIndex: index].flatMap { $0 }
 
         let query = RouteQuery(origin: segment.from.isCurrentLocation
                                 ? .currentLocation

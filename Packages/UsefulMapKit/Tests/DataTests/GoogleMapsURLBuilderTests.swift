@@ -303,7 +303,7 @@ struct GoogleWaypointConstraintTests {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = tokyoTimeZone
         let date = calendar.date(from: DateComponents(year: 2026, month: 8, day: 14,
-                                                     hour: 10, minute: 32))!
+                                                      hour: 10, minute: 32))!
         let query = RouteQuery(destination: destination,
                                waypoints: [station],
                                transportMode: mode,

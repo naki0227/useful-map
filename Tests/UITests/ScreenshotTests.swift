@@ -75,10 +75,10 @@ final class ScreenshotTests: XCTestCase {
     }
 
     /// 保存タブへ移動する。
-    /// iPadOS はフローティングタブバーで、要素が Cell として出るため型を限定しない。
+    /// iPadOS はフローティングタブバーで要素が Cell として出るため、型を限定せず識別子で引く。
     private func tapSavedTab() {
         let saved = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@", "保存"))
+            .matching(NSPredicate(format: "identifier == %@", "bookmark"))
             .firstMatch
         wait(saved)
         saved.tap()

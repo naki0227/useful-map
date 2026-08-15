@@ -21,7 +21,7 @@ struct MapKitBridgeTests {
     @Test("MKMapItem から内部 Place へ正規化する")
     func placeFromMapItem() throws {
         let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: 35.6812362,
-                                                                      longitude: 139.7671248))
+                                                                       longitude: 139.7671248))
         let item = MKMapItem(placemark: placemark)
         item.name = "東京駅"
 

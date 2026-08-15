@@ -6,11 +6,18 @@ BUNDLE_ID := com.usefulmap.UsefulMap
 DEVICE_ID ?= $(shell xcrun devicectl list devices 2>/dev/null | awk '$$4 == "available" {print $$3; exit}')
 DEVELOPMENT_TEAM ?= X97ZJZ42VZ
 DEVICE_BUILD_DIR := build/device
+ARCHIVE_PATH := build/UsefulMap.xcarchive
+EXPORT_DIR := build/export
+
+# App Store 用スクリーンショットを撮る端末。Apple が必須としている 2 サイズ。
+SCREENSHOT_IPHONE ?= platform=iOS Simulator,name=iPhone 17 Pro Max
+SCREENSHOT_IPAD ?= platform=iOS Simulator,name=iPad Pro 13-inch (M4)
+SCREENSHOT_DIR := artifacts/screenshots
 # 署名は CI で無効化しているため、実機ビルドのときだけ上書きする。
 SIGNING_OVERRIDES := CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
 	CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM)
 
-.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run quality all clean
+.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run screenshots archive export-ipa upload quality all clean
 
 help: ## 使えるターゲット一覧
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -30,7 +37,8 @@ contract-unit: ## 契約監視の単体テスト（ネットワーク不要）
 
 e2e: project ## E2E（XCUITest / シミュレータ）
 	xcodebuild test -project UsefulMap.xcodeproj -scheme UsefulMap \
-		-destination "$(SIMULATOR)" -only-testing:UsefulMapUITests
+		-destination "$(SIMULATOR)" -only-testing:UsefulMapUITests \
+		-skip-testing:UsefulMapUITests/ScreenshotTests
 
 test: unit contract-unit e2e ## テスト一式
 
@@ -77,6 +85,51 @@ sim-run: project ## シミュレータへインストールして起動する
 	open -a Simulator
 	xcrun simctl install booted build/sim/Build/Products/Debug-iphonesimulator/UsefulMap.app
 	xcrun simctl launch booted $(BUNDLE_ID)
+
+screenshots: project ## App Store 用スクリーンショットを 2 サイズ撮る
+	@rm -rf $(SCREENSHOT_DIR)
+	$(MAKE) capture-screenshots DEST="$(SCREENSHOT_IPHONE)" OUT=iphone-6.9
+	$(MAKE) capture-screenshots DEST="$(SCREENSHOT_IPAD)" OUT=ipad-13
+	@echo "書き出し先: $(SCREENSHOT_DIR)/final/"
+
+# 1 サイズぶんを撮って xcresult の添付から PNG を取り出す。
+# 添付名（01-map-home など）がそのままファイル名になる。
+capture-screenshots:
+	@rm -rf $(SCREENSHOT_DIR)/$(OUT).xcresult
+	xcodebuild test -project UsefulMap.xcodeproj -scheme UsefulMap \
+		-destination "$(DEST)" \
+		-only-testing:UsefulMapUITests/ScreenshotTests \
+		-resultBundlePath $(SCREENSHOT_DIR)/$(OUT).xcresult
+	@mkdir -p $(SCREENSHOT_DIR)/raw/$(OUT) $(SCREENSHOT_DIR)/final/$(OUT)
+	xcrun xcresulttool export attachments \
+		--path $(SCREENSHOT_DIR)/$(OUT).xcresult \
+		--output-path $(SCREENSHOT_DIR)/raw/$(OUT)
+	@python3 scripts/collect-screenshots.py \
+		$(SCREENSHOT_DIR)/raw/$(OUT) $(SCREENSHOT_DIR)/final/$(OUT)
+
+archive: project ## App Store 提出用にアーカイブする（署名あり）
+	xcodebuild archive -project UsefulMap.xcodeproj -scheme UsefulMap \
+		-destination 'generic/platform=iOS' \
+		-archivePath $(ARCHIVE_PATH) \
+		-allowProvisioningUpdates $(SIGNING_OVERRIDES)
+
+export-ipa: archive ## アーカイブから App Store 用の .ipa を書き出す
+	@rm -rf $(EXPORT_DIR)
+	xcodebuild -exportArchive -archivePath $(ARCHIVE_PATH) \
+		-exportPath $(EXPORT_DIR) \
+		-exportOptionsPlist ExportOptions.plist \
+		-allowProvisioningUpdates
+	@echo "書き出し先: $(EXPORT_DIR)"
+
+# App Store Connect の API キーが要る。発行は「ユーザとアクセス > 統合」から。
+#   export ASC_KEY_ID=... ASC_ISSUER_ID=...
+#   キー本体は ~/.appstoreconnect/private_keys/AuthKey_$$ASC_KEY_ID.p8 に置く
+upload: export-ipa ## .ipa を App Store Connect へ上げる
+	@test -n "$(ASC_KEY_ID)" || (echo "ASC_KEY_ID が未設定です" && exit 1)
+	@test -n "$(ASC_ISSUER_ID)" || (echo "ASC_ISSUER_ID が未設定です" && exit 1)
+	xcrun altool --upload-app --type ios \
+		--file $(EXPORT_DIR)/UsefulMap.ipa \
+		--apiKey $(ASC_KEY_ID) --apiIssuer $(ASC_ISSUER_ID)
 
 urls: ## 手動検証用に Primary / Official URL を出力する
 	cd contract-watch && node src/print-urls.mjs $(WALLCLOCK)

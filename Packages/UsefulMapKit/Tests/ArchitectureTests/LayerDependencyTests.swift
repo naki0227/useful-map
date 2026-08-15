@@ -161,7 +161,7 @@ enum SourceScanner {
     static func files(in module: String) throws -> [SourceFile] {
         let root = try sourcesRoot().appendingPathComponent(module)
         guard let enumerator = FileManager.default.enumerator(at: root,
-                                                             includingPropertiesForKeys: nil) else {
+                                                              includingPropertiesForKeys: nil) else {
             throw ScanError(description: "\(module) を走査できない")
         }
         var result: [SourceFile] = []

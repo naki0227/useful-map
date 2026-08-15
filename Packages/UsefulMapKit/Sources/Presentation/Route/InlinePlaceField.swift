@@ -36,8 +36,9 @@ struct InlinePlaceField: View {
         self.onUseCurrentLocation = onUseCurrentLocation
         self.onPickOnMap = onPickOnMap
         self.onCancel = onCancel
-        _viewModel = StateObject(wrappedValue: SearchViewModel(dependencies: dependencies,
-                                                              centerProvider: { center }))
+        let searchViewModel = SearchViewModel(dependencies: dependencies,
+                                              centerProvider: { center })
+        _viewModel = StateObject(wrappedValue: searchViewModel)
     }
 
     var body: some View {

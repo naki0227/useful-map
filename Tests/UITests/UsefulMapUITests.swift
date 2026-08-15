@@ -23,43 +23,42 @@ final class UsefulMapUITests: XCTestCase {
 
     // MARK: - ヘルパ
 
-    /// 地図ホーム → 検索 → 東京駅を選択 → 場所詳細まで進む。
-    private func searchAndOpenTokyoStation() {
-        let searchField = app.buttons[A11y.searchField]
-        XCTAssertTrue(searchField.waitForExistence(timeout: timeout()), "検索フィールドが表示されない")
-        searchField.tap()
+    /// タブは iPadOS 26 だとフローティングタブバーになり TabBar / Button 配下に来ないため、
+    /// 型を限定せずに引く。ラベル（地図）は地図キャンバスとぶつかるので識別子で引く。
+    private func tab(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", identifier))
+            .firstMatch
+    }
 
-        let input = app.textFields[A11y.searchField]
-        XCTAssertTrue(input.waitForExistence(timeout: timeout()), "検索入力が表示されない")
+    /// 地図ホームの下書き欄で目的地に東京駅を入れる。
+    ///
+    /// 目的地を選んだ時点で経路が組み上がる。場所詳細を経由しないのは、
+    /// 検索前に出発地と時刻を決める画面（RouteDraftView）が入口になったため。
+    private func startRouteToTokyoStation() {
+        let destination = app.buttons[A11y.searchField]
+        XCTAssertTrue(destination.waitForExistence(timeout: timeout()), "目的地の欄が表示されない")
+        destination.tap()
+
+        // 押すとその場で入力欄に変わる。目的地は 2 番目のノード。
+        let input = app.textFields[A11y.nodeField(1)]
+        XCTAssertTrue(input.waitForExistence(timeout: timeout()), "目的地の入力欄が開かない")
         input.tap()
         input.typeText("東京駅")
 
-        let firstResult = app.otherElements[A11y.searchResult(0)].firstMatch
-        let fallback = app.staticTexts["東京駅"].firstMatch
-        if firstResult.waitForExistence(timeout: 5) {
-            firstResult.tap()
-        } else {
-            XCTAssertTrue(fallback.waitForExistence(timeout: timeout()), "検索結果が表示されない")
-            fallback.tap()
-        }
+        let result = app.buttons[A11y.searchResult(0)].firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: timeout()), "検索結果が表示されない")
+        result.tap()
 
-        XCTAssertTrue(app.staticTexts[A11y.placeTitle].waitForExistence(timeout: timeout()),
-                      "場所詳細が表示されない")
-    }
-
-    /// 場所詳細 → 経路。地図画面のまま上下のシートが切り替わる。
-    private func openRoute() {
-        let routeButton = app.buttons[A11y.routeButton]
-        XCTAssertTrue(routeButton.waitForExistence(timeout: timeout()), "経路ボタンが無い")
-        routeButton.tap()
+        XCTAssertTrue(app.buttons[A11y.node(0)].waitForExistence(timeout: timeout()),
+                      "目的地を選んでも経路が出ない")
     }
 
     // MARK: - E2E 1: 検索から区間分割された経路まで
 
     func testSearchToSegmentedRoute() {
         launch()
-        searchAndOpenTokyoStation()
-        openRoute()
+        startRouteToTokyoStation()
 
         // 地図タブのまま、上部にノードの連鎖が出る。
         XCTAssertTrue(app.buttons[A11y.node(0)].waitForExistence(timeout: timeout()),
@@ -76,7 +75,7 @@ final class UsefulMapUITests: XCTestCase {
                       "合計時間が表示されない")
 
         // 地図タブから移動していない。
-        XCTAssertTrue(app.tabBars.buttons["地図"].isSelected, "経路のためにタブが切り替わっている")
+        XCTAssertTrue(app.buttons["map"].isSelected, "経路のためにタブが切り替わっている")
 
         // 運賃・乗換回数を Useful Map 自身が推定・表示しないこと。
         let fare = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", ".*[¥￥][0-9].*"))
@@ -87,8 +86,7 @@ final class UsefulMapUITests: XCTestCase {
 
     func testTogglingSegmentMode() {
         launch()
-        searchAndOpenTokyoStation()
-        openRoute()
+        startRouteToTokyoStation()
 
         let modeButton = app.buttons[A11y.segmentMode(0)]
         XCTAssertTrue(modeButton.waitForExistence(timeout: timeout()))
@@ -107,8 +105,7 @@ final class UsefulMapUITests: XCTestCase {
 
     func testInlinePlaceEditing() {
         launch()
-        searchAndOpenTokyoStation()
-        openRoute()
+        startRouteToTokyoStation()
 
         let node = app.buttons[A11y.node(0)]
         XCTAssertTrue(node.waitForExistence(timeout: timeout()))
@@ -135,8 +132,7 @@ final class UsefulMapUITests: XCTestCase {
 
     func testWalkingPaceToggle() {
         launch()
-        searchAndOpenTokyoStation()
-        openRoute()
+        startRouteToTokyoStation()
 
         let paceButton = app.buttons[A11y.walkingPaceButton]
         XCTAssertTrue(paceButton.waitForExistence(timeout: timeout()), "徒歩ペースのボタンが無い")
@@ -154,8 +150,7 @@ final class UsefulMapUITests: XCTestCase {
 
     func testOpensTimedGoogleMapsURL() {
         launch()
-        searchAndOpenTokyoStation()
-        openRoute()
+        startRouteToTokyoStation()
 
         // 区間ごとに詳細がある。区間 1（公共交通）の詳細を開く。
         let detailButton = app.buttons[A11y.detailButton(1)]
@@ -181,8 +176,7 @@ final class UsefulMapUITests: XCTestCase {
 
     func testFallsBackToOfficialURL() {
         launch(scenario: "primaryURLBroken")
-        searchAndOpenTokyoStation()
-        openRoute()
+        startRouteToTokyoStation()
 
         let detailButton = app.buttons[A11y.detailButton(1)]
         XCTAssertTrue(detailButton.waitForExistence(timeout: timeout()))
@@ -201,8 +195,7 @@ final class UsefulMapUITests: XCTestCase {
 
     func testShowsMessageWhenNoRoutes() {
         launch(scenario: "noRoutes")
-        searchAndOpenTokyoStation()
-        openRoute()
+        startRouteToTokyoStation()
 
         XCTAssertTrue(app.descendants(matching: .any)[A11y.routeError].firstMatch.waitForExistence(timeout: timeout()),
                       "経路なしの案内が出ない")
@@ -215,22 +208,29 @@ final class UsefulMapUITests: XCTestCase {
 
     func testSavingPlaceWithLabelAndHistory() {
         launch()
-        searchAndOpenTokyoStation()
+        startRouteToTokyoStation()
+        XCTAssertTrue(app.descendants(matching: .any)[A11y.planTotal].firstMatch.waitForExistence(timeout: timeout()),
+                      "経路が組み上がらない（履歴が記録されない）")
 
+        // 経路を閉じると、いま検索した地点が「最近の検索」に残っている。
+        app.buttons[A11y.closeRouteButton].tap()
+        let recent = app.buttons[A11y.recentSearch(0)]
+        XCTAssertTrue(recent.waitForExistence(timeout: timeout()), "最近の検索が記録されていない")
+        recent.tap()
+
+        XCTAssertTrue(app.staticTexts[A11y.placeTitle].waitForExistence(timeout: timeout()),
+                      "履歴から場所詳細を開けない")
         let saveButton = app.buttons[A11y.saveButton]
         XCTAssertTrue(saveButton.waitForExistence(timeout: timeout()))
         saveButton.tap()
         // confirmationDialog のボタンは階層上に二重に現れるため firstMatch で解決する。
         app.buttons[A11y.saveLabelOption("home")].firstMatch.tap()
-        XCTAssertTrue(app.buttons["自宅"].waitForExistence(timeout: timeout()), "ラベルが反映されない")
+        XCTAssertTrue(app.buttons["自宅"].firstMatch.waitForExistence(timeout: timeout()), "ラベルが反映されない")
 
-        openRoute()
-        XCTAssertTrue(app.descendants(matching: .any)[A11y.planTotal].firstMatch.waitForExistence(timeout: timeout()))
-
-        app.tabBars.buttons["保存"].tap()
-        XCTAssertTrue(app.buttons[A11y.savedPlace(0)].waitForExistence(timeout: timeout()),
+        tab("bookmark").tap()
+        XCTAssertTrue(app.buttons[A11y.savedPlace(0)].firstMatch.waitForExistence(timeout: timeout()),
                       "保存地点が一覧に出ない")
-        XCTAssertTrue(app.staticTexts["自宅"].exists, "保存一覧にラベルが出ない")
+        XCTAssertTrue(app.staticTexts["自宅"].firstMatch.exists, "保存一覧にラベルが出ない")
         XCTAssertTrue(app.buttons[A11y.recentRoute(0)].exists, "最近の経路が記録されていない")
 
         // 履歴から経路を開くと地図タブへ戻る。
@@ -245,8 +245,7 @@ extension UsefulMapUITests {
 
     func testClosingRouteReturnsToMap() {
         launch()
-        searchAndOpenTokyoStation()
-        openRoute()
+        startRouteToTokyoStation()
         XCTAssertTrue(app.buttons[A11y.node(0)].waitForExistence(timeout: timeout()))
 
         app.buttons[A11y.closeRouteButton].tap()
@@ -261,12 +260,11 @@ extension UsefulMapUITests {
 
     func testAddingWaypointKeepsOtherNodes() {
         launch()
-        searchAndOpenTokyoStation()
-        openRoute()
+        startRouteToTokyoStation()
 
         XCTAssertTrue(app.buttons[A11y.node(0)].waitForExistence(timeout: timeout()))
         let nodeCountBefore = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@",
-                                                              "route.node.")).count
+                                                               "route.node.")).count
 
         // 先頭の区間に経由地を足す。
         app.buttons[A11y.addWaypoint(0)].tap()
@@ -277,6 +275,24 @@ extension UsefulMapUITests {
         let nodeCountDuring = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@",
                                                                "route.node.")).count
         XCTAssertEqual(nodeCountDuring, nodeCountBefore, "既存のノードが消えている")
+    }
+
+    // MARK: - E2E 11: 検索前に出発地と時刻条件を決められる
+
+    func testDraftConditionsAreAvailableBeforeSearching() {
+        launch()
+
+        // 目的地を入れる前から、出発地と時刻条件が置いてある。
+        XCTAssertTrue(app.buttons[A11y.draftOrigin].waitForExistence(timeout: timeout()),
+                      "検索前に出発地を指定できない")
+        XCTAssertTrue(app.buttons[A11y.timeCondition].exists, "検索前に時刻条件を指定できない")
+        XCTAssertTrue(app.buttons[A11y.searchField].exists, "目的地の欄が無い")
+
+        // 出発地を押すとその場で入力欄になる（別画面へ飛ばない）。
+        app.buttons[A11y.draftOrigin].tap()
+        XCTAssertTrue(app.textFields[A11y.nodeField(0)].waitForExistence(timeout: timeout()),
+                      "出発地がその場で編集できない")
+        XCTAssertTrue(app.buttons[A11y.timeCondition].exists, "編集で画面が置き換わっている")
     }
 }
 
@@ -305,4 +321,8 @@ enum A11y {
     static func searchResult(_ index: Int) -> String { "search.result.\(index)" }
     static func savedPlace(_ index: Int) -> String { "saved.place.\(index)" }
     static func recentRoute(_ index: Int) -> String { "saved.route.\(index)" }
+    static func recentSearch(_ index: Int) -> String { "map.recentSearch.\(index)" }
+
+    static let draftOrigin = "draft.origin"
+    static let timeCondition = "time.condition"
 }

@@ -113,7 +113,7 @@ struct SearchViewModelTests {
     func debounceSkipsIntermediateInput() async {
         let service = FakeSearchService()
         let viewModel = SearchViewModel(dependencies: TestEnvironment.make(search: service,
-                                                                          debounce: .milliseconds(80)))
+                                                                           debounce: .milliseconds(80)))
 
         let first = viewModel.updateQuery("東")
         let second = viewModel.updateQuery("東京")
@@ -127,7 +127,7 @@ struct SearchViewModelTests {
     func searchNow() async {
         let service = FakeSearchService()
         let viewModel = SearchViewModel(dependencies: TestEnvironment.make(search: service,
-                                                                          debounce: .seconds(10)))
+                                                                           debounce: .seconds(10)))
         viewModel.queryText = "東京駅"
         await viewModel.searchNow().value
 
