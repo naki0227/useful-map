@@ -163,7 +163,8 @@ public struct MapHomeView: View {
             } else if let place = router.detailPlace {
                 PlaceDetailView(place: place,
                                 dependencies: dependencies,
-                                onClose: { router.detailPlace = nil })
+                                onClose: { router.detailPlace = nil },
+                                onStoreChanged: { viewModel.refreshStoredData() })
             } else {
                 recentsCard
             }

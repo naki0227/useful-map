@@ -8,6 +8,8 @@ public struct PlaceDetailView: View {
     private let dependencies: AppDependencies
     /// 下のシートに埋め込まれるため、閉じる動作は呼び出し側が持つ。
     private let onClose: () -> Void
+    /// 保存内容が変わったことを地図側へ伝える。地図のショートカットを即座に追従させるため。
+    private let onStoreChanged: () -> Void
     @StateObject private var viewModel: SavedViewModel
     @EnvironmentObject private var router: AppRouter
     @State private var isLabelPickerPresented = false
@@ -20,10 +22,12 @@ public struct PlaceDetailView: View {
 
     public init(place: Place,
                 dependencies: AppDependencies,
-                onClose: @escaping () -> Void = {}) {
+                onClose: @escaping () -> Void = {},
+                onStoreChanged: @escaping () -> Void = {}) {
         self.place = place
         self.dependencies = dependencies
         self.onClose = onClose
+        self.onStoreChanged = onStoreChanged
         _viewModel = StateObject(wrappedValue: SavedViewModel(dependencies: dependencies))
     }
 
@@ -105,6 +109,7 @@ public struct PlaceDetailView: View {
                            ? L10n.string("placeDetail.saveOnly")
                            : L10n.string("placeDetail.saveAsLabel", label.displayName)) {
                         viewModel.save(place, label: label)
+                        onStoreChanged()
                     }
                     .accessibilityIdentifier(A11y.saveLabelOption(label.rawValue))
                 }
