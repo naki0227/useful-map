@@ -7,8 +7,18 @@
 	<string>app-store-connect</string>
 	<key>teamID</key>
 	<string>X97ZJZ42VZ</string>
+	<!-- 自動署名は配布用プロファイルが無いとクラウド署名へ倒れ、CI では
+	     権限エラーになる。プロファイルを先に用意して手動で指定するほうが、
+	     手元と CI で同じ結果になる（make asc-profile で取得する）。 -->
 	<key>signingStyle</key>
-	<string>automatic</string>
+	<string>manual</string>
+	<key>signingCertificate</key>
+	<string>Apple Distribution</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.usefulmap.UsefulMap</key>
+		<string>Useful Map App Store</string>
+	</dict>
 	<!-- ビットコードは廃止済み。シンボルは送って、クラッシュを読めるようにする。 -->
 	<key>uploadSymbols</key>
 	<true/>

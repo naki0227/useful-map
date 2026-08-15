@@ -6,6 +6,7 @@
 
     ASC_KEY_ID=... ASC_ISSUER_ID=... python scripts/asc.py <サブコマンド>
 """
+import base64
 import hashlib
 import os
 import re
@@ -515,6 +516,51 @@ def cmd_availability(client: Client) -> None:
     print(f"配信地域: {len(territories)} 地域を有効にしました")
 
 
+PROFILE_NAME = "Useful Map App Store"
+PROFILE_DIR = Path.home() / "Library" / "MobileDevice" / "Provisioning Profiles"
+
+
+def cmd_profile(client: Client) -> None:
+    """App Store 配布用のプロビジョニングプロファイルを用意して手元へ置く。
+
+    xcodebuild の自動署名は、配布用プロファイルが無いとクラウド署名へ倒れ、
+    CI では権限エラーで止まる。作ってから手動署名で書き出すほうが確実で、
+    手元と CI で同じ結果になる。
+    """
+    bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
+    identifiers = client.get("/v1/bundleIds",
+                             params={"filter[identifier]": bundle_id, "limit": 1})["data"]
+    if not identifiers:
+        raise SystemExit(f"{bundle_id} が Identifiers に登録されていません")
+
+    profiles = client.get("/v1/profiles", params={
+        "filter[name]": PROFILE_NAME, "filter[profileState]": "ACTIVE", "limit": 1})["data"]
+    if profiles:
+        profile = client.get(f"/v1/profiles/{profiles[0]['id']}")["data"]
+    else:
+        certificates = [c for c in client.get("/v1/certificates", params={"limit": 50})["data"]
+                        if c["attributes"]["certificateType"] == "DISTRIBUTION"]
+        if not certificates:
+            raise SystemExit("配布用証明書がありません。"
+                             "scripts/make-distribution-cert.sh を実行してください")
+        profile = client.post("/v1/profiles", {
+            "data": {"type": "profiles",
+                     "attributes": {"name": PROFILE_NAME, "profileType": "IOS_APP_STORE"},
+                     "relationships": {
+                         "bundleId": {"data": {"type": "bundleIds",
+                                               "id": identifiers[0]["id"]}},
+                         "certificates": {"data": [{"type": "certificates", "id": c["id"]}
+                                                   for c in certificates]}}}
+        })["data"]
+
+    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    content = base64.b64decode(profile["attributes"]["profileContent"])
+    destination = PROFILE_DIR / f"{profile['attributes']['uuid']}.mobileprovision"
+    destination.write_bytes(content)
+    print(f"プロファイル: {profile['attributes']['name']} "
+          f"({profile['attributes']['uuid']}) → {destination}")
+
+
 def cmd_price(client: Client) -> None:
     """無料で配信する設定を入れる。"""
     bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
@@ -648,7 +694,7 @@ def cmd_check(client: Client) -> None:
 COMMANDS = {"apps": cmd_apps, "status": cmd_status, "check": cmd_check,
             "push": cmd_push, "screenshots": cmd_screenshots, "build": cmd_build,
             "declare": cmd_declare, "availability": cmd_availability,
-            "submit": cmd_submit, "price": cmd_price}
+            "submit": cmd_submit, "price": cmd_price, "profile": cmd_profile}
 
 if __name__ == "__main__":
     name = sys.argv[1] if len(sys.argv) > 1 else "status"

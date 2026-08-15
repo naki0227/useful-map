@@ -17,7 +17,7 @@ SCREENSHOT_DIR := artifacts/screenshots
 SIGNING_OVERRIDES := CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
 	CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM)
 
-.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run screenshots archive export-ipa upload asc-venv asc-status asc-apps asc-check asc-push asc-screenshots asc-build asc-declare asc-availability asc-price asc-submit quality all clean
+.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run screenshots archive export-ipa upload asc-venv asc-status asc-apps asc-check asc-push asc-screenshots asc-build asc-declare asc-availability asc-price asc-profile asc-submit quality all clean
 
 help: ## 使えるターゲット一覧
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -169,6 +169,9 @@ asc-declare: check-asc ## 年齢制限と権利表明を回答する
 
 asc-availability: check-asc ## 配信地域を設定する
 	$(ASC_PY) scripts/asc.py availability
+
+asc-profile: check-asc ## 配布用プロビジョニングプロファイルを用意する
+	$(ASC_PY) scripts/asc.py profile
 
 asc-price: check-asc ## 無料配信の価格を設定する
 	$(ASC_PY) scripts/asc.py price
