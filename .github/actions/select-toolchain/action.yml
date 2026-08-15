@@ -1,0 +1,41 @@
+name: ツールチェーンを選ぶ
+description: >
+  入っている中で一番新しい Xcode と、そこで使える iPhone シミュレータを選び、
+  DEVELOPER_DIR と SIMULATOR を後続のステップへ渡す。
+  ランナーイメージが変わると /Applications/Xcode.app の指す先も変わり、
+  古い Xcode に当たってシミュレータが見つからず落ちるため、実行時に決める。
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+
+        newest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1 || true)
+        developer="${newest:-/Applications/Xcode.app}/Contents/Developer"
+        echo "DEVELOPER_DIR=$developer" >> "$GITHUB_ENV"
+        export DEVELOPER_DIR="$developer"
+        echo "Xcode: $(xcodebuild -version | head -1)"
+
+        available=$(xcrun simctl list devices available | sed -n 's/^ *\(iPhone [^(]*[^ (]\) *(.*/\1/p')
+        if [ -z "$available" ]; then
+          echo "使える iPhone シミュレータがありません" >&2
+          xcrun simctl list devices available >&2
+          exit 1
+        fi
+
+        # 新しい順に探し、無ければ残っているものの先頭を使う。
+        # 名前の辞書順・バージョン順では選べない（iPhone Air が最後に来てしまう）ため、
+        # 欲しい順を明示する。
+        name=""
+        for candidate in "iPhone 17" "iPhone 16" "iPhone 15"; do
+          if printf '%s\n' "$available" | grep -qx "$candidate"; then
+            name="$candidate"
+            break
+          fi
+        done
+        name="${name:-$(printf '%s\n' "$available" | head -1)}"
+
+        echo "SIMULATOR=platform=iOS Simulator,name=$name" >> "$GITHUB_ENV"
+        echo "シミュレータ: $name"

@@ -10,9 +10,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
-  SIMULATOR: platform=iOS Simulator,name=iPhone 17
+# DEVELOPER_DIR / SIMULATOR は固定しない。
+# ランナーイメージによって /Applications/Xcode.app の指す先が変わり、
+# 古い Xcode に当たると iPhone 17 のシミュレータが無くて落ちるため、
+# 「入っている中で一番新しいもの」を実行時に選ぶ（select-toolchain）。
 
 jobs:
   # 1. 単体テスト + アーキテクチャテスト（最も速く落ちるので最初に回す）
@@ -72,6 +73,7 @@ jobs:
     needs: unit-tests
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/select-toolchain
       - run: brew install xcodegen
       - run: xcodegen generate
       - name: E2E
@@ -96,6 +98,7 @@ jobs:
     needs: unit-tests
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/select-toolchain
       - run: brew install xcodegen peripheryapp/periphery/periphery
       - run: xcodegen generate
       - run: periphery scan --config .periphery.yml --format github-actions
