@@ -28,14 +28,24 @@ xcrun simctl privacy "$id" grant location-always "$bundle"
 xcrun simctl location "$id" set "$location"
 xcrun simctl ui "$id" appearance light
 
-rm -f "$out/raw.mov"
+rm -f "$out/raw.mov" "$out/markers.txt"
 xcrun simctl io "$id" recordVideo --codec h264 --force "$out/raw.mov" &
 recorder=$!
 sleep 2
+: > "$out/markers.txt"
 
 xcodebuild test -project UsefulMap.xcodeproj -scheme UsefulMap \
-  -destination "id=$id" -only-testing:UsefulMapUITests/PromoRecording
+  -destination "id=$id" -only-testing:UsefulMapUITests/PromoRecording \
+  | grep --line-buffered "PROMO_MARK" | sed 's/.*PROMO_MARK //' >> "$out/markers.txt" || true
 
-kill -INT $recorder
+# 止めた時刻を残す。録画の始まりは「止めた時刻 − 動画の長さ」で逆算できる。
+# 録画開始の時刻を直接測ると、simctl が実際に撮り始めるまでの間だけずれる。
+echo "stop $(python3 -c 'import time; print(time.time())')" >> "$out/markers.txt"
+
+# バックグラウンドのシェルから起動すると $! への kill が届かないことがあるので、
+# 端末を指定して確実に止める。
+pkill -INT -f "simctl io $id recordVideo" 2>/dev/null || kill -INT $recorder 2>/dev/null || true
 wait $recorder 2>/dev/null || true
+
 echo "素材: $out/raw.mov"
+cat "$out/markers.txt"

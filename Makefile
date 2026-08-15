@@ -187,9 +187,12 @@ upload: export-ipa ## .ipa を App Store Connect へ上げる
 		--file $(EXPORT_DIR)/UsefulMap.ipa \
 		--apiKey $(ASC_KEY_ID) --apiIssuer $(ASC_ISSUER_ID)
 
-promo: ## PV を撮って組み立てる（素材の撮影から書き出しまで）
-	scripts/record-promo.sh artifacts/promo
-	$(ASC_PY) scripts/make-promo.py artifacts/promo/raw.mov artifacts/promo/promo.mp4
+PROMO_MUSIC ?= promo/music/upbeat-corporate.mp3
+
+promo: ## PV を撮って組み立てる（SNS 用と Appプレビュー用の 2 本）
+	PROMO_SIM="iPhone 17 Pro Max" scripts/record-promo.sh artifacts/promo
+	$(ASC_PY) scripts/make-promo.py artifacts/promo/raw.mov artifacts/promo/promo.mp4 $(PROMO_MUSIC)
+	$(ASC_PY) scripts/make-promo.py artifacts/promo/raw.mov artifacts/promo/promo-store.mp4 $(PROMO_MUSIC) --store
 
 urls: ## 手動検証用に Primary / Official URL を出力する
 	cd contract-watch && node src/print-urls.mjs $(WALLCLOCK)

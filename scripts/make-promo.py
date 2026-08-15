@@ -7,7 +7,9 @@
 手作業で切らずにスクリプトにしてあるのは、撮り直すたびに同じ編集を
 やり直せるようにするため。区間の秒数だけ直せば作り直せる。
 
-    scripts/.venv/bin/python scripts/make-promo.py <raw.mov> <out.mp4>
+    scripts/.venv/bin/python scripts/make-promo.py <raw.mov> <out.mp4> [音楽.mp3] [--store]
+
+--store を付けると App Store の「Appプレビュー」向けに 30 秒以内へ詰める。
 """
 import subprocess
 import sys
@@ -16,28 +18,50 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 FONT = "/System/Library/Fonts/Hiragino Sans GB.ttc"
-CANVAS = (1206, 2622)
+# 画面の大きさは素材から取る。端末を変えて撮り直しても、そのまま通す。
+CANVAS = (1320, 2868)
 BACKGROUND = (12, 22, 38)      # 画面が明るいので、背景は濃紺で締める
 ACCENT = (90, 170, 255)
 
-# 生の録画から使う区間。(開始秒, 終了秒, 再生速度)
-# 経路の計算待ちは絵にならないので丸ごと落とす。
+# 使う区間。(始点マーカー, 終点マーカー, 再生速度, 始点をずらす秒)
+#
+# 秒数を直に書かない。撮り直すたびに端末の速さで position がずれるため、
+# テストが出したマーカーの時刻から求める（markers.txt）。
+# 経路の計算待ち（searching → route）は絵にならないので丸ごと落とす。
 CUTS = [
-    (6.5, 9.6, 1.0),    # 現在地（東京ディズニーランド）
-    (9.6, 16.4, 1.8),   # 目的地を打つ
-    (30.5, 36.8, 1.0),  # 区間に分かれた経路が出るところ
-    (36.8, 43.0, 1.5),  # Safari へ渡す（読み込み中の白画面は早送りで抜ける）
-    (43.0, 52.0, 1.0),  # Google マップ側の結果
+    ("map", "typing", 1.0, 0.0),
+    ("typing", "searching", 1.8, 0.0),
+    # 計算の最後 1.5 秒だけ残し、区間に分かれる瞬間を見せる。
+    ("route", "handoff", 1.0, -1.5),
+    ("handoff", "google", 1.5, 0.0),
+    ("google", "end", 1.0, 0.0),
 ]
 
-# (開始秒, 終了秒, 主文, 副文) — 尺は CUTS から計算した後の時間軸。
+# 区間ごとの字幕。(主文, 副文) — 表示する時間は区間の長さから決まる。
 CAPTIONS = [
-    (0.0, 3.1, "東京ディズニーランドから", "大阪・道頓堀へ帰る"),
-    (3.1, 6.9, "目的地を入れるだけ", None),
-    (6.9, 13.2, "徒歩・電車・徒歩に自動で分かれる", "到着時刻まで分かる"),
-    (13.2, 17.3, "運賃と乗換は Google マップへ", None),
-    (17.3, 26.4, "比較は Useful Map", "詳細は Google マップ"),
+    ("東京ディズニーランドから", "大阪・道頓堀へ帰る"),
+    ("目的地を入れるだけ", None),
+    ("徒歩・電車・徒歩に自動で分かれる", "到着時刻まで分かる"),
+    ("運賃と乗換は Google マップへ", None),
+    ("比較は Useful Map", "詳細は Google マップ"),
 ]
+
+# 冒頭に差す 1 枚と、最後のカードの背景。
+HOOK = Path("promo/assets/hook.png")
+END_BACKGROUND = Path("promo/assets/endcard.png")
+HOOK_SECONDS = 1.1
+END_SECONDS = 2.6
+
+# App Store の Appプレビューは 15〜30 秒。最後の見せ場を詰めて収める。
+STORE_TAIL_SECONDS = 5.5
+STORE_END_SECONDS = 1.8
+
+
+def probe(path: Path, entries: str) -> str:
+    return subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", entries,
+         "-of", "default=nw=1:nk=1", str(path)],
+        capture_output=True, text=True).stdout.strip()
 
 
 def run(args: list[str]) -> None:
@@ -63,8 +87,25 @@ def caption_image(path: Path, headline: str, sub: str | None) -> None:
     image.save(path)
 
 
+def load_markers(path: Path, video: Path) -> dict[str, float]:
+    """テストが出した時刻を、動画中の秒数へ直す。
+
+    録画開始の時刻を直接測ると、simctl が実際に撮り始めるまでの分だけずれる。
+    止めた時刻は正確に取れるので、そこから動画の長さを引いて始まりを求める。
+    """
+    values = {}
+    for line in path.read_text().splitlines():
+        name, epoch = line.split()
+        values[name] = float(epoch)
+    began = values.pop("stop") - float(probe(video, "format=duration"))
+    return {name: epoch - began for name, epoch in values.items()}
+
+
 def end_card(path: Path, icon: Path) -> None:
-    image = Image.new("RGB", CANVAS, BACKGROUND)
+    if END_BACKGROUND.exists():
+        image = Image.open(END_BACKGROUND).convert("RGB").resize(CANVAS)
+    else:
+        image = Image.new("RGB", CANVAS, BACKGROUND)
     draw = ImageDraw.Draw(image)
     badge = Image.open(icon).convert("RGBA").resize((360, 360))
     # 角を丸める。アイコンは正方形で書き出されているため。
@@ -83,19 +124,59 @@ def end_card(path: Path, icon: Path) -> None:
     image.save(path)
 
 
+def add_music(video: Path, music: Path, out: Path) -> None:
+    """音楽を尺に合わせて敷く。
+
+    長さは映像に合わせて切り、頭を少し立ち上げ、終わりは余韻を残して落とす。
+    音量は loudnorm で -16 LUFS へ揃える。SNS の再生音量に近く、
+    端末のスピーカーでも小さすぎない。
+    """
+    duration = float(probe(video, "format=duration"))
+    fade_out_at = max(duration - 2.2, 0.0)
+    run(["ffmpeg", "-v", "error", "-i", str(video), "-i", str(music),
+         "-filter_complex",
+         f"[1:a]atrim=0:{duration},asetpts=N/SR/TB,"
+         f"afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_at:.2f}:d=2.2,"
+         f"loudnorm=I=-16:TP=-1.5:LRA=11[a]",
+         "-map", "0:v", "-map", "[a]",
+         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest",
+         str(out), "-y"])
+
+
 def main() -> None:
     raw, out = Path(sys.argv[1]), Path(sys.argv[2])
+    arguments = sys.argv[3:]
+    store = "--store" in arguments
+    rest = [a for a in arguments if not a.startswith("--")]
+    music = Path(rest[0]) if rest else None
+    end_seconds = STORE_END_SECONDS if store else END_SECONDS
     work = out.parent / "work"
     work.mkdir(parents=True, exist_ok=True)
+    marks = load_markers(raw.parent / "markers.txt", raw)
 
-    # 1. 区間を切り出して速度を掛ける。
-    parts = []
-    for index, (start, end, speed) in enumerate(CUTS):
+    global CANVAS
+    width, height = probe(raw, "stream=width,height").split()
+    CANVAS = (int(width), int(height))
+
+    # 1. マーカーの位置で切り出し、速度を掛ける。
+    parts, lengths = [], []
+    for index, (begin, finish, speed, offset) in enumerate(CUTS):
+        start, end = marks[begin] + offset, marks[finish]
+        # 尺を詰めるときは、いちばん動きの少ない最後の区間を短くする。
+        if store and index == len(CUTS) - 1:
+            end = min(end, start + STORE_TAIL_SECONDS)
         part = work / f"cut{index}.mp4"
-        run(["ffmpeg", "-v", "error", "-ss", str(start), "-to", str(end), "-i", str(raw),
-             "-filter:v", f"setpts=PTS/{speed}", "-an", "-r", "30",
+        # -ss / -t は setpts と噛み合わず尺がずれる。フィルタの trim で正確に切る。
+        run(["ffmpeg", "-v", "error", "-i", str(raw),
+             # 画面が止まっている間はフレームが出ない録画なので、
+             # まず 30fps へ均し、その上で切る。順序を逆にすると尺が合わない。
+             "-filter:v", f"fps=30,trim=start={start}:end={end},"
+                          f"setpts=(PTS-STARTPTS)/{speed}",
+             "-an", "-r", "30",
              "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", str(part), "-y"])
         parts.append(part)
+        # 字幕を合わせるため、狙いではなく実際に出来た長さを使う。
+        lengths.append(float(probe(part, "format=duration")))
 
     listing = work / "parts.txt"
     listing.write_text("".join(f"file '{p.name}'\n" for p in parts))
@@ -104,11 +185,14 @@ def main() -> None:
          "-c", "copy", str(joined), "-y"])
 
     # 2. 画面を少し縮めて濃紺の上に置き、空いた上の帯へ字幕を入れる。
+    #    字幕の出る時間は、切った区間の長さの積み上げで決まる。
     overlays = []
-    for index, (start, end, headline, sub) in enumerate(CAPTIONS):
+    elapsed = 0.0
+    for index, (headline, sub) in enumerate(CAPTIONS):
         path = work / f"cap{index}.png"
         caption_image(path, headline, sub)
-        overlays.append((path, start, end))
+        overlays.append((path, elapsed, elapsed + lengths[index]))
+        elapsed += lengths[index]
 
     inputs = ["-i", str(joined)]
     for path, _, _ in overlays:
@@ -116,7 +200,7 @@ def main() -> None:
 
     chain = [f"color=c=0x{BACKGROUND[0]:02x}{BACKGROUND[1]:02x}{BACKGROUND[2]:02x}:"
              f"s={CANVAS[0]}x{CANVAS[1]}:r=30[bg]",
-             "[0:v]scale=964:-2[phone]",
+             f"[0:v]scale={int(CANVAS[0] * 0.8)}:-2[phone]",
              "[bg][phone]overlay=(W-w)/2:H-h-60:shortest=1[base0]"]
     for index, (_, start, end) in enumerate(overlays):
         chain.append(f"[base{index}][{index + 1}:v]overlay=0:0:"
@@ -131,14 +215,34 @@ def main() -> None:
     card = work / "end.png"
     end_card(card, Path("App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png"))
     tail = work / "end.mp4"
-    run(["ffmpeg", "-v", "error", "-loop", "1", "-t", "2.6", "-i", str(card),
-         "-vf", "scale=1206:2622", "-r", "30", "-c:v", "libx264", "-crf", "18",
+    run(["ffmpeg", "-v", "error", "-loop", "1", "-t", str(end_seconds), "-i", str(card),
+         "-vf", f"scale={CANVAS[0]}:{CANVAS[1]}", "-r", "30", "-c:v", "libx264", "-crf", "18",
          "-pix_fmt", "yuv420p", str(tail), "-y"])
 
+    # 4. 冒頭に 1 枚だけ静止画を差す。ゆっくり寄せて、動きを止めない。
+    pieces = []
+    if HOOK.exists():
+        hook = work / "hook.mp4"
+        frames = int(HOOK_SECONDS * 30)
+        run(["ffmpeg", "-v", "error", "-loop", "1", "-t", str(HOOK_SECONDS), "-i", str(HOOK),
+             "-vf", f"scale={CANVAS[0] * 2}:-2,"
+                    f"zoompan=z='min(1.07,1+0.07*on/{frames})':d=1:"
+                    f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+                    f"s={CANVAS[0]}x{CANVAS[1]}:fps=30,"
+                    f"fade=t=out:st={HOOK_SECONDS - 0.35:.2f}:d=0.35",
+             "-r", "30", "-c:v", "libx264", "-crf", "18",
+             "-pix_fmt", "yuv420p", str(hook), "-y"])
+        pieces.append(hook)
+    pieces += [body, tail]
+
     final_list = work / "final.txt"
-    final_list.write_text(f"file '{body.name}'\nfile '{tail.name}'\n")
+    final_list.write_text("".join(f"file '{p.name}'\n" for p in pieces))
+    silent = work / "silent.mp4" if music else out
     run(["ffmpeg", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(final_list),
-         "-c", "copy", str(out), "-y"])
+         "-c", "copy", str(silent), "-y"])
+
+    if music:
+        add_music(silent, music, out)
     print(f"書き出し: {out}")
 
 
