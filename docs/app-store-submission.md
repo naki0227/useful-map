@@ -3,6 +3,8 @@
 App Store Connect に入力する文言・設定を全部まとめたもの。
 コピペしてそのまま使える形にしてある。
 
+- **アプリ名（確定）**: `Useful Map 経路比較`
+- **プライバシーポリシー URL**: https://naki0227.github.io/useful-map/
 - **Bundle ID**: `com.usefulmap.UsefulMap`
 - **主要市場**: 日本（MapKit の公共交通が使える地域）
 - **想定利用者**: 日本国内を移動する人。特に**日本語を読めない訪日・在日の利用者**を
@@ -20,6 +22,21 @@ App Store の検索インデックスは **アプリ名 + サブタイトル + �
 
 このアプリの検索需要は「**経路**」「**乗換**」「**所要時間**」「**比較**」に集中する。
 `Useful Map` だけでは "map" の巨大な競合に埋もれるため、名前に「経路比較」を入れる。
+
+### 決定
+
+**`Useful Map 経路比較`** を採用する。
+
+理由:
+
+- `Useful Map` だけでは "map" の巨大な競合に埋もれ、指名検索でしか当たらない
+- 日本語圏の検索需要は「経路」「乗換」「所要時間」「比較」に集中する。
+  このうち名前に入れるのは 1 語だけにして、残りはサブタイトルとキーワードへ回す
+  （名前に詰め込むとガイドライン 4.3 / 2.3.7 で差し戻される）
+- 「経路比較」はこのアプリの独自性そのもの。Google マップや Yahoo!乗換案内が
+  「1 つの最適解を出す」のに対し、こちらは「並べて比べて決める」ことが売りなので、
+  名前が機能をそのまま説明している
+- 全ロケールで `Useful Map` を先頭に固定し、ブランドの一貫性を保つ
 
 ### 各言語の名前・サブタイトル
 
@@ -467,13 +484,22 @@ nakinakipal@gmail.com
 4. **経路編集** — 「出発地・経由地・時刻を変えてすぐ再検索」
 5. **保存・履歴** — 「よく行く場所を自宅・学校として保存」
 
-撮影コマンド:
+撮影は自動化してある。`-UITestMode` でデータを固定するため、何度撮っても同じ画面になる。
 
 ```bash
-xcrun simctl boot "iPhone 17 Pro Max"
-xcrun simctl launch booted com.usefulmap.UsefulMap
-xcrun simctl io booted screenshot ~/Desktop/screenshot-01.png
+make screenshots     # 6.9" iPhone と 13" iPad の 2 サイズを撮る
+# → artifacts/screenshots/final/{iphone-6.9,ipad-13}/*.png
 ```
+
+撮れる 5 枚:
+
+| ファイル | 画面 |
+|---|---|
+| `01-map-home.png` | 検索前に出発地と時刻条件を決められる地図ホーム |
+| `02-search.png` | その場で出る検索候補 |
+| `03-route-segments.png` | 区間に分かれた経路（徒歩 → 公共交通） |
+| `04-route-edit.png` | 区間の途中に経由地を足すところ |
+| `05-saved.png` | 保存地点と履歴 |
 
 > **iPad 用を用意しない場合**は `project.yml` の `TARGETED_DEVICE_FAMILY` を `"1"` に変更して
 > iPhone 専用として申請する。どちらかを必ず選ぶこと。
@@ -499,8 +525,8 @@ xcrun simctl io booted screenshot ~/Desktop/screenshot-01.png
 - [ ] `App/PrivacyInfo.xcprivacy` が含まれている（配置済み）
 - [ ] `ITSAppUsesNonExemptEncryption` が `false`（設定済み）
 - [ ] 5 言語の `InfoPlist.strings` で位置情報の用途が翻訳されている（配置済み）
-- [ ] プライバシーポリシーを公開して URL を取得した
-- [ ] スクリーンショットを iPhone 6.9" と iPad 13" で撮影した
+- [x] プライバシーポリシーを公開して URL を取得した（https://naki0227.github.io/useful-map/）
+- [x] スクリーンショットを iPhone 6.9" と iPad 13" で撮影した（`make screenshots`）
 - [ ] **実機で Google マップへの遷移を確認した**（時刻条件が反映されるか）
 - [ ] `make all` が通る（単体 188 / 契約監視 19 / E2E 7）
 - [ ] Apple Developer Program に登録済み（年 99 USD）
