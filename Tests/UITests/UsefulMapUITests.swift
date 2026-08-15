@@ -15,7 +15,10 @@ final class UsefulMapUITests: XCTestCase {
     }
 
     private func launch(scenario: String = "standard") {
-        app.launchArguments = ["-UITestMode", "-UITestScenario", scenario]
+        // 言語を固定する。CI のシミュレータは英語で、そのままだと
+        // 「自宅」が「Home」になり、表示文言を見る検証が環境で変わってしまう。
+        app.launchArguments = ["-UITestMode", "-UITestScenario", scenario,
+                               "-AppleLanguages", "(ja)", "-AppleLocale", "ja_JP"]
         app.launch()
     }
 

@@ -14,7 +14,9 @@ final class ScreenshotTests: XCTestCase {
         super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-UITestMode", "-UITestScenario", "standard"]
+        // 提出用は日本語で撮る。撮る端末の言語設定に左右されないよう固定する。
+        app.launchArguments = ["-UITestMode", "-UITestScenario", "standard",
+                               "-AppleLanguages", "(ja)", "-AppleLocale", "ja_JP"]
         app.launch()
     }
 
