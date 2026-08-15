@@ -1,0 +1,138 @@
+name: リリース（App Store）
+
+# タグを押したときだけ Apple へ流す。main への push では動かさない。
+# バージョンはタグから取る（v1.2.3 → 1.2.3）。ビルド番号は実行回数を使うので、
+# 同じバージョンで何度でも上げ直せる。
+on:
+  push:
+    tags: ['v*']
+  # 手で流したいとき用。dry_run を true にすると Apple へは送らない。
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Apple へ送らず、書き出しまでで止める
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: アーカイブ → 提出
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/select-toolchain
+      - run: brew install xcodegen
+
+      - name: バージョンを決める
+        id: version
+        run: |
+          set -euo pipefail
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version=$(grep 'MARKETING_VERSION' project.yml | head -1 | tr -d ' "' | cut -d: -f2)
+          fi
+          echo "marketing=$version" >> "$GITHUB_OUTPUT"
+          # 実行回数をそのままビルド番号にする。単調増加で、重複しない。
+          echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "バージョン $version (build ${{ github.run_number }})"
+
+      # 配布用証明書はクラウド署名で、秘密鍵は Apple 側にある。
+      # 手元にもリポジトリにも鍵を持たずに済むので、.p12 は預けない。
+      # xcodebuild には API キーだけ渡し、証明書とプロファイルは取りに行かせる。
+      - name: API キーを置く
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/keys"
+          echo "$ASC_KEY_P8" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
+          chmod 600 "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
+          # キーチェーンを触るので、ロック待ちで固まらないようにしておく。
+          security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db || true
+
+      - run: xcodegen generate
+
+      - name: アーカイブ
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild archive \
+            -project UsefulMap.xcodeproj -scheme UsefulMap \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/UsefulMap.xcarchive \
+            MARKETING_VERSION=${{ steps.version.outputs.marketing }} \
+            CURRENT_PROJECT_VERSION=${{ steps.version.outputs.build }} \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=X97ZJZ42VZ \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: .ipa を書き出す
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/UsefulMap.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: スクリーンショットを撮り直す
+        run: make screenshots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ steps.version.outputs.marketing }}-${{ steps.version.outputs.build }}
+          path: |
+            build/export/UsefulMap.ipa
+            artifacts/screenshots/final
+
+      # ここから先が Apple へ送る操作。dry run では飛ばす。
+      - name: 検証（Apple へは送らない）
+        if: ${{ inputs.dry_run }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          export API_PRIVATE_KEYS_DIR="$RUNNER_TEMP/keys"
+          xcrun altool --validate-app --type ios \
+            --file build/export/UsefulMap.ipa \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: ビルドをアップロード
+        if: ${{ !inputs.dry_run }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          export API_PRIVATE_KEYS_DIR="$RUNNER_TEMP/keys"
+          xcrun altool --upload-app --type ios \
+            --file build/export/UsefulMap.ipa \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: 説明文・キーワード・スクリーンショットを反映
+        if: ${{ !inputs.dry_run }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          # asc.py は ~/.appstoreconnect/private_keys から鍵を読む。
+          mkdir -p ~/.appstoreconnect/private_keys
+          cp "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" ~/.appstoreconnect/private_keys/
+          make asc-venv
+          make asc-push
+          make asc-screenshots

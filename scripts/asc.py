@@ -1,0 +1,394 @@
+"""App Store Connect API の薄いクライアント。
+
+説明文・キーワード・スクリーンショットを Web の画面で 5 言語ぶん手入力するのは
+現実的でないので、API から流し込む。アプリレコードの作成だけは API に
+エンドポイントが無いため、そこは Web で作ってもらう前提。
+
+    ASC_KEY_ID=... ASC_ISSUER_ID=... python scripts/asc.py <サブコマンド>
+"""
+import hashlib
+import os
+import re
+import sys
+import time
+from pathlib import Path
+
+import jwt
+import requests
+
+BASE = "https://api.appstoreconnect.apple.com"
+PRIVACY_POLICY_URL = "https://naki0227.github.io/useful-map/"
+SUPPORT_URL = "https://github.com/naki0227/useful-map"
+KEY_DIR = Path.home() / ".appstoreconnect" / "private_keys"
+
+
+def token() -> str:
+    key_id = os.environ["ASC_KEY_ID"]
+    issuer = os.environ["ASC_ISSUER_ID"]
+    private_key = (KEY_DIR / f"AuthKey_{key_id}.p8").read_text()
+    now = int(time.time())
+    return jwt.encode(
+        # 20 分が上限。余裕を持って 15 分にする。
+        {"iss": issuer, "iat": now, "exp": now + 15 * 60, "aud": "appstoreconnect-v1"},
+        private_key,
+        algorithm="ES256",
+        headers={"kid": key_id, "typ": "JWT"},
+    )
+
+
+class Duplicate(Exception):
+    """すでに同じロケールがある。作成ではなく更新へ回す合図。"""
+
+
+class Client:
+    def __init__(self) -> None:
+        self.session = requests.Session()
+        self.session.headers["Authorization"] = f"Bearer {token()}"
+
+    def request(self, method: str, path: str, **kwargs):
+        url = path if path.startswith("http") else f"{BASE}{path}"
+        response = self.session.request(method, url, **kwargs)
+        if not response.ok:
+            if response.status_code == 409 and "INVALID.DUPLICATE" in response.text:
+                raise Duplicate(response.text)
+            raise SystemExit(f"{method} {url} → {response.status_code}\n{response.text}")
+        return response.json() if response.content else {}
+
+    def get(self, path, **kwargs):
+        return self.request("GET", path, **kwargs)
+
+    def post(self, path, payload):
+        return self.request("POST", path, json=payload)
+
+    def patch(self, path, payload):
+        return self.request("PATCH", path, json=payload)
+
+
+def find_app(client: Client, bundle_id: str) -> dict | None:
+    apps = client.get("/v1/apps", params={"filter[bundleId]": bundle_id})["data"]
+    return apps[0] if apps else None
+
+
+# MARK: - 提出ドキュメントの読み取り
+#
+# 文言の出典は docs/app-store-submission.md ひとつだけにする。
+# 別ファイルへ書き写すと必ず片方だけ直されてずれるため、ここで直接読む。
+
+DOC = Path(__file__).resolve().parent.parent / "docs" / "app-store-submission.md"
+
+# 見出しの言語名 → App Store Connect のロケール
+LOCALES = {
+    "日本語": "ja",
+    "English": "en-US",
+    "简体中文": "zh-Hans",
+    "한국어": "ko",
+    "ไทย": "th",
+}
+
+
+def _sections(text: str, level: int) -> dict[str, str]:
+    """`### 見出し` で本文を切り分ける。"""
+    marker = "#" * level
+    pattern = re.compile(rf"^{marker} (.+)$", re.MULTILINE)
+    matches = list(pattern.finditer(text))
+    result = {}
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        result[match.group(1).strip()] = text[match.end():end]
+    return result
+
+
+def _code_blocks(text: str) -> list[str]:
+    return [block.strip() for block in re.findall(r"```\n(.*?)```", text, re.DOTALL)]
+
+
+def load_metadata() -> dict[str, dict[str, str]]:
+    text = DOC.read_text()
+    top = _sections(text, 2)
+
+    metadata: dict[str, dict[str, str]] = {name: {} for name in LOCALES.values()}
+
+    # 1. 名前とサブタイトルは表から、キーワードはコードブロックから読む。
+    naming = top["1. アプリ名（ASO 方針）"]
+    for row in re.findall(r"^\| (.+?) \| `(.+?)` \| `(.+?)` \|$", naming, re.MULTILINE):
+        language, name, subtitle = row
+        locale = LOCALES.get(language.strip())
+        if locale:
+            metadata[locale]["name"] = name
+            metadata[locale]["subtitle"] = subtitle
+
+    keyword_block = _code_blocks(naming)[0]
+    for chunk in re.split(r"\n\s*\n", keyword_block):
+        lines = [line for line in chunk.strip().split("\n") if line.strip()]
+        if len(lines) < 2:
+            continue
+        locale = LOCALES.get(lines[0].rstrip(":").strip())
+        if locale:
+            metadata[locale]["keywords"] = lines[1].strip()
+
+    # 2. 説明文は言語ごとの見出しの下に、
+    #    プロモーション → 説明 → What's New の順でコードブロックが並ぶ。
+    for language, body in _sections(top["3. 各ロケールの説明文"], 3).items():
+        locale = LOCALES.get(language.strip())
+        if locale is None:
+            continue
+        blocks = _code_blocks(body)
+        if len(blocks) < 3:
+            raise SystemExit(f"{language} の説明文が 3 ブロック揃っていません")
+        metadata[locale]["promotionalText"] = blocks[0]
+        metadata[locale]["description"] = blocks[1]
+        metadata[locale]["whatsNew"] = blocks[2]
+
+    for locale, values in metadata.items():
+        missing = {"name", "subtitle", "keywords", "description"} - values.keys()
+        if missing:
+            raise SystemExit(f"{locale} に {sorted(missing)} がありません")
+    return metadata
+
+
+def review_notes() -> str:
+    top = _sections(DOC.read_text(), 2)
+    return _code_blocks(top["4. App Review Information（審査メモ）"])[0]
+
+
+# MARK: - サブコマンド
+
+def cmd_apps(client: Client) -> None:
+    for app in client.get("/v1/apps", params={"limit": 200})["data"]:
+        attributes = app["attributes"]
+        print(f"{app['id']:12} {attributes['bundleId']:35} {attributes['name']}")
+
+
+def cmd_status(client: Client) -> None:
+    bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
+    app = find_app(client, bundle_id)
+    if app is None:
+        raise SystemExit(
+            f"{bundle_id} のアプリレコードがありません。\n"
+            "API ではアプリを作れないため、App Store Connect の「マイApp → ＋」で作成してください。"
+        )
+    print(f"アプリ  : {app['attributes']['name']} (id={app['id']})")
+
+    versions = client.get(f"/v1/apps/{app['id']}/appStoreVersions", params={"limit": 5})["data"]
+    for version in versions:
+        attributes = version["attributes"]
+        print(f"バージョン: {attributes['versionString']} / {attributes['appStoreState']}")
+
+    builds = client.get("/v1/builds", params={"filter[app]": app["id"], "limit": 5})["data"]
+    for build in builds:
+        attributes = build["attributes"]
+        print(f"ビルド  : {attributes['version']} / {attributes.get('processingState')}")
+    if not builds:
+        print("ビルド  : まだ届いていません")
+
+
+def editable_version(client: Client, app_id: str) -> dict:
+    """まだ編集できるバージョン（審査提出前）を取る。"""
+    versions = client.get(
+        f"/v1/apps/{app_id}/appStoreVersions",
+        params={"filter[appStoreState]": "PREPARE_FOR_SUBMISSION", "limit": 1},
+    )["data"]
+    if not versions:
+        raise SystemExit("編集できるバージョンがありません（審査中か、公開済みです）")
+    return versions[0]
+
+
+def upsert(client: Client, path: str, list_path: str, locale: str,
+           attributes: dict, relationship: dict) -> None:
+    """同じロケールがあれば更新、無ければ作る。
+
+    ロケールを 1 つ足すと Apple 側が関連する項目を自動で作ることがあるため、
+    一覧は毎回取り直す。それでも競合したら、作成済みとみなして更新へ回す。
+    """
+    def current() -> dict | None:
+        items = client.get(list_path, params={"limit": 50})["data"]
+        return next((item for item in items
+                     if item["attributes"]["locale"] == locale), None)
+
+    def patch(item: dict) -> None:
+        client.patch(f"{path}/{item['id']}",
+                     {"data": {"type": item["type"], "id": item["id"],
+                               "attributes": attributes}})
+
+    existing = current()
+    if existing is not None:
+        patch(existing)
+        return
+    try:
+        client.post(path, {"data": {"type": relationship["type"],
+                                    "attributes": {**attributes, "locale": locale},
+                                    "relationships": relationship["relationships"]}})
+    except Duplicate:
+        created = current()
+        if created is None:
+            raise
+        patch(created)
+
+
+def cmd_push(client: Client) -> None:
+    """説明文・キーワード・審査メモを投入する。"""
+    metadata = load_metadata()
+    bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
+    app = find_app(client, bundle_id)
+    if app is None:
+        raise SystemExit(f"{bundle_id} のアプリレコードがありません")
+    app_id = app["id"]
+    version = editable_version(client, app_id)
+    version_id = version["id"]
+    print(f"対象: {app['attributes']['name']} / {version['attributes']['versionString']}")
+
+    # 初回リリースには「このバージョンの新機能」が無く、送ると 409 になる。
+    all_versions = client.get(f"/v1/apps/{app_id}/appStoreVersions",
+                              params={"limit": 50})["data"]
+    is_first_release = all(
+        item["attributes"]["appStoreState"] == "PREPARE_FOR_SUBMISSION"
+        for item in all_versions
+    )
+    if is_first_release:
+        print("  初回リリースのため What's New は送りません")
+
+    # 名前・サブタイトルは「App 情報」側（バージョンをまたいで共通）。
+    app_info = client.get(f"/v1/apps/{app_id}/appInfos")["data"][0]
+
+    info_list = f"/v1/appInfos/{app_info['id']}/appInfoLocalizations"
+    version_list = f"/v1/appStoreVersions/{version_id}/appStoreVersionLocalizations"
+
+    for locale, values in metadata.items():
+        upsert(client, "/v1/appInfoLocalizations", info_list, locale,
+               {"name": values["name"], "subtitle": values["subtitle"],
+                "privacyPolicyUrl": PRIVACY_POLICY_URL},
+               {"type": "appInfoLocalizations",
+                "relationships": {"appInfo": {"data": {"type": "appInfos",
+                                                       "id": app_info["id"]}}}})
+        version_attributes = {"description": values["description"],
+                              "keywords": values["keywords"],
+                              "promotionalText": values["promotionalText"],
+                              "supportUrl": SUPPORT_URL,
+                              "marketingUrl": SUPPORT_URL}
+        if not is_first_release:
+            version_attributes["whatsNew"] = values["whatsNew"]
+        upsert(client, "/v1/appStoreVersionLocalizations", version_list, locale,
+               version_attributes,
+               {"type": "appStoreVersionLocalizations",
+                "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions",
+                                                               "id": version_id}}}})
+        print(f"  {locale} を投入")
+
+    # 審査メモ。サインイン不要なので、そこも明示しておく。
+    detail = client.get(f"/v1/appStoreVersions/{version_id}/appStoreReviewDetail")["data"]
+    attributes = {"notes": review_notes(), "demoAccountRequired": False}
+    if detail:
+        client.patch(f"/v1/appStoreReviewDetails/{detail['id']}",
+                     {"data": {"type": "appStoreReviewDetails", "id": detail["id"],
+                               "attributes": attributes}})
+    else:
+        client.post("/v1/appStoreReviewDetails",
+                    {"data": {"type": "appStoreReviewDetails", "attributes": attributes,
+                              "relationships": {"appStoreVersion": {
+                                  "data": {"type": "appStoreVersions", "id": version_id}}}}})
+    print("  審査メモを投入")
+
+
+# 撮影したサイズ → App Store Connect の表示タイプ
+SCREENSHOT_SETS = {
+    "iphone-6.9": "APP_IPHONE_67",
+    "ipad-13": "APP_IPAD_PRO_3GEN_129",
+}
+SCREENSHOT_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "screenshots" / "final"
+
+
+def upload_screenshot(client: Client, set_id: str, path: Path, order: int) -> None:
+    """予約 → 実体を PUT → チェックサムを添えて確定、の 3 段で送る。"""
+    data = path.read_bytes()
+    reservation = client.post("/v1/appScreenshots", {
+        "data": {
+            "type": "appScreenshots",
+            "attributes": {"fileName": path.name, "fileSize": len(data)},
+            "relationships": {"appScreenshotSet": {
+                "data": {"type": "appScreenshotSets", "id": set_id}}},
+        }
+    })["data"]
+
+    for operation in reservation["attributes"]["uploadOperations"]:
+        headers = {header["name"]: header["value"] for header in operation["requestHeaders"]}
+        chunk = data[operation["offset"]:operation["offset"] + operation["length"]]
+        response = requests.request(operation["method"], operation["url"],
+                                    headers=headers, data=chunk)
+        if not response.ok:
+            raise SystemExit(f"アップロード失敗 {path.name}: {response.status_code}")
+
+    client.patch(f"/v1/appScreenshots/{reservation['id']}", {
+        "data": {"type": "appScreenshots", "id": reservation["id"],
+                 "attributes": {"uploaded": True,
+                                "sourceFileChecksum": hashlib.md5(data).hexdigest()}}
+    })
+
+
+def cmd_screenshots(client: Client) -> None:
+    """スクリーンショットを差し替える（既存は一度消してから入れ直す）。"""
+    locale = os.environ.get("SCREENSHOT_LOCALE", "ja")
+    bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
+    app = find_app(client, bundle_id)
+    if app is None:
+        raise SystemExit(f"{bundle_id} のアプリレコードがありません")
+    version_id = editable_version(client, app["id"])["id"]
+
+    localizations = client.get(
+        f"/v1/appStoreVersions/{version_id}/appStoreVersionLocalizations",
+        params={"limit": 50})["data"]
+    target = next((item for item in localizations
+                   if item["attributes"]["locale"] == locale), None)
+    if target is None:
+        raise SystemExit(f"{locale} のバージョン情報がありません。先に push を実行してください")
+
+    sets = client.get(f"/v1/appStoreVersionLocalizations/{target['id']}/appScreenshotSets",
+                      params={"limit": 50})["data"]
+
+    for directory, display_type in SCREENSHOT_SETS.items():
+        images = sorted((SCREENSHOT_DIR / directory).glob("*.png"))
+        if not images:
+            raise SystemExit(f"{directory} に画像がありません。make screenshots を実行してください")
+
+        existing = next((item for item in sets
+                         if item["attributes"]["screenshotDisplayType"] == display_type), None)
+        if existing is None:
+            existing = client.post("/v1/appScreenshotSets", {
+                "data": {"type": "appScreenshotSets",
+                         "attributes": {"screenshotDisplayType": display_type},
+                         "relationships": {"appStoreVersionLocalization": {
+                             "data": {"type": "appStoreVersionLocalizations",
+                                      "id": target["id"]}}}}
+            })["data"]
+        else:
+            # 並び順と枚数を確実に合わせるため、入れ直す前に消す。
+            for old in client.get(f"/v1/appScreenshotSets/{existing['id']}/appScreenshots",
+                                  params={"limit": 50})["data"]:
+                client.request("DELETE", f"/v1/appScreenshots/{old['id']}")
+
+        for order, image in enumerate(images):
+            upload_screenshot(client, existing["id"], image, order)
+            print(f"  {directory}/{image.name}")
+        print(f"{display_type}: {len(images)} 枚")
+
+
+def cmd_check(client: Client) -> None:
+    """投入する内容を、送らずに確認する。"""
+    metadata = load_metadata()
+    for locale, values in metadata.items():
+        print(f"--- {locale}")
+        print(f"  名前         : {values['name']} ({len(values['name'])} 字)")
+        print(f"  サブタイトル : {values['subtitle']} ({len(values['subtitle'])} 字)")
+        print(f"  キーワード   : {len(values['keywords'])} 字")
+        print(f"  説明文       : {len(values['description'])} 字")
+        print(f"  What's New   : {len(values['whatsNew'])} 字")
+    print(f"--- 審査メモ: {len(review_notes())} 字")
+
+
+COMMANDS = {"apps": cmd_apps, "status": cmd_status, "check": cmd_check,
+            "push": cmd_push, "screenshots": cmd_screenshots}
+
+if __name__ == "__main__":
+    name = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if name not in COMMANDS:
+        raise SystemExit(f"使えるサブコマンド: {', '.join(COMMANDS)}")
+    COMMANDS[name](Client())

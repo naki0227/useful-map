@@ -17,7 +17,7 @@ SCREENSHOT_DIR := artifacts/screenshots
 SIGNING_OVERRIDES := CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
 	CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM)
 
-.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run screenshots archive export-ipa upload quality all clean
+.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run screenshots archive export-ipa upload asc-venv asc-status asc-apps asc-check asc-push asc-screenshots quality all clean
 
 help: ## 使えるターゲット一覧
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -124,6 +124,33 @@ export-ipa: archive ## アーカイブから App Store 用の .ipa を書き出�
 # App Store Connect の API キーが要る。発行は「ユーザとアクセス > 統合」から。
 #   export ASC_KEY_ID=... ASC_ISSUER_ID=...
 #   キー本体は ~/.appstoreconnect/private_keys/AuthKey_$$ASC_KEY_ID.p8 に置く
+# App Store Connect API を叩くための仮想環境。Git には入れない。
+ASC_PY := scripts/.venv/bin/python
+
+asc-venv: ## API クライアント用の Python 環境を用意する
+	python3 -m venv scripts/.venv
+	scripts/.venv/bin/pip install --quiet PyJWT cryptography requests
+
+check-asc:
+	@test -n "$(ASC_KEY_ID)" || (echo "ASC_KEY_ID が未設定です" && exit 1)
+	@test -n "$(ASC_ISSUER_ID)" || (echo "ASC_ISSUER_ID が未設定です" && exit 1)
+	@test -f "$(ASC_PY)" || (echo "先に make asc-venv を実行してください" && exit 1)
+
+asc-apps: check-asc ## App Store Connect の登録アプリを一覧する
+	$(ASC_PY) scripts/asc.py apps
+
+asc-status: check-asc ## このアプリのレコード・バージョン・ビルドの状態を見る
+	$(ASC_PY) scripts/asc.py status
+
+asc-check: ## 投入する文言を、送らずに確認する
+	$(ASC_PY) scripts/asc.py check
+
+asc-push: check-asc ## 説明文・キーワード・審査メモを 5 言語ぶん反映する
+	$(ASC_PY) scripts/asc.py push
+
+asc-screenshots: check-asc ## スクリーンショットを差し替える
+	$(ASC_PY) scripts/asc.py screenshots
+
 upload: export-ipa ## .ipa を App Store Connect へ上げる
 	@test -n "$(ASC_KEY_ID)" || (echo "ASC_KEY_ID が未設定です" && exit 1)
 	@test -n "$(ASC_ISSUER_ID)" || (echo "ASC_ISSUER_ID が未設定です" && exit 1)
