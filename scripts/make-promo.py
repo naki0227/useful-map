@@ -25,25 +25,32 @@ CANVAS = (1320, 2868)
 BACKGROUND = (12, 22, 38)      # 画面が明るいので、背景は濃紺で締める
 ACCENT = (90, 170, 255)
 
-# 使う区間。(始点マーカー, 終点マーカー, 再生速度, 始点をずらす秒)
+# 使う区間。(始点マーカー, 終点マーカー, 再生速度, 始点をずらす秒, 終点をずらす秒)
 #
-# 秒数を直に書かない。撮り直すたびに端末の速さで position がずれるため、
+# 秒数を直に書かない。撮り直すたびに端末の速さで位置がずれるため、
 # テストが出したマーカーの時刻から求める（markers.txt）。
-# 経路の計算待ち（searching → route）は絵にならないので丸ごと落とす。
+REVEAL = 1.2   # 経路が分かれる瞬間の手前。ここから等速に戻す。
+HOLD = 7.0     # 分かれた行程を読ませる時間。
 CUTS = [
-    ("map", "typing", 1.0, 0.0),
-    ("typing", "searching", 1.8, 0.0),
-    # 計算の最後 1.5 秒だけ残し、区間に分かれる瞬間を見せる。
-    ("route", "handoff", 1.0, -1.5),
-    ("handoff", "google", 1.5, 0.0),
-    ("google", "end", 1.0, 0.0),
+    ("map", "typing", 1.0, 0.0, 0.0),
+    ("typing", "searching", 1.8, 0.0, 0.0),
+    # 計算待ちは長いので早送りする。ただし切り落とさない。
+    # 「探している → 分かれた」がつながって見えないと、何が起きたか伝わらない。
+    ("searching", "route", 5.0, 0.0, -REVEAL),
+    # 分かれる瞬間から等速に戻して、読む時間を作る。
+    ("route", "route", 1.0, -REVEAL, HOLD),
+    # そのあと画面は止まったままなので、押す直前まで飛ばす。
+    ("handoff", "google", 1.0, -0.6, 0.0),
+    ("google", "end", 1.0, 0.0, 0.0),
 ]
 
 # 区間ごとの字幕。(主文, 副文) — 表示する時間は区間の長さから決まる。
+# None を置くと、前の字幕をそのまま出し続ける。
 CAPTIONS = [
     ("東京ディズニーランドから", "大阪・道頓堀へ帰る"),
     ("目的地を入れるだけ", None),
     ("徒歩・電車・徒歩に自動で分かれる", "到着時刻まで分かる"),
+    None,
     ("運賃と乗換は Google マップへ", None),
     ("比較は Useful Map", "詳細は Google マップ"),
 ]
@@ -166,8 +173,8 @@ def main() -> None:
 
     # 1. マーカーの位置で切り出し、速度を掛ける。
     parts, lengths = [], []
-    for index, (begin, finish, speed, offset) in enumerate(CUTS):
-        start, end = marks[begin] + offset, marks[finish]
+    for index, (begin, finish, speed, head, tail) in enumerate(CUTS):
+        start, end = marks[begin] + head, marks[finish] + tail
         # 尺を詰めるときは、いちばん動きの少ない最後の区間を短くする。
         if store and index == len(CUTS) - 1:
             end = min(end, start + STORE_TAIL_SECONDS)
@@ -192,12 +199,16 @@ def main() -> None:
 
     # 2. 画面を少し縮めて濃紺の上に置き、空いた上の帯へ字幕を入れる。
     #    字幕の出る時間は、切った区間の長さの積み上げで決まる。
-    overlays = []
+    overlays: list[list] = []
     elapsed = 0.0
-    for index, (headline, sub) in enumerate(CAPTIONS):
-        path = work / f"cap{index}.png"
-        caption_image(path, headline, sub)
-        overlays.append((path, elapsed, elapsed + lengths[index]))
+    for index, caption in enumerate(CAPTIONS):
+        if caption is None:
+            # 前の字幕を出したままにする。
+            overlays[-1][2] = elapsed + lengths[index]
+        else:
+            path = work / f"cap{index}.png"
+            caption_image(path, *caption)
+            overlays.append([path, elapsed, elapsed + lengths[index]])
         elapsed += lengths[index]
 
     inputs = ["-i", str(joined)]
