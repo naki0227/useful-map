@@ -11,7 +11,7 @@ EXPORT_DIR := build/export
 
 # App Store 用スクリーンショットを撮る端末。Apple が必須としている 2 サイズ。
 SCREENSHOT_IPHONE ?= platform=iOS Simulator,name=iPhone 17 Pro Max
-SCREENSHOT_IPAD ?= platform=iOS Simulator,name=iPad Pro 13-inch (M4)
+SCREENSHOT_IPAD ?= platform=iOS Simulator,name=iPad Pro 13-inch (M5)
 SCREENSHOT_DIR := artifacts/screenshots
 # 署名は CI で無効化しているため、実機ビルドのときだけ上書きする。
 SIGNING_OVERRIDES := CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
