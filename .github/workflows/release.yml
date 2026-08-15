@@ -105,11 +105,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath build/UsefulMap.xcarchive \
             MARKETING_VERSION=${{ steps.version.outputs.marketing }} \
-            CURRENT_PROJECT_VERSION=${{ steps.version.outputs.build }} \
-            CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
-            CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=X97ZJZ42VZ \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="Useful Map App Store"
+            CURRENT_PROJECT_VERSION=${{ steps.version.outputs.build }}
 
       - name: .ipa を書き出す
         run: |

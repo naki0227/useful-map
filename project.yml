@@ -63,6 +63,17 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         MARKETING_VERSION: "0.1.0"
         TARGETED_DEVICE_FAMILY: "1,2"
+      configs:
+        # 配布用の署名はここにだけ書く。コマンドラインで渡すと SPM の各
+        # ターゲットにも掛かり、「プロビジョニングプロファイルに対応していない」
+        # と言われて落ちる。アーカイブは Release なので、影響はここだけに閉じる。
+        Release:
+          CODE_SIGNING_REQUIRED: YES
+          CODE_SIGNING_ALLOWED: YES
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "Useful Map App Store"
+          DEVELOPMENT_TEAM: X97ZJZ42VZ
 
   UsefulMapUITests:
     type: bundle.ui-testing
