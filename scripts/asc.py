@@ -18,6 +18,7 @@ import requests
 
 BASE = "https://api.appstoreconnect.apple.com"
 PRIVACY_POLICY_URL = "https://naki0227.github.io/useful-map/"
+COPYRIGHT = "2026 Ibuki Nagase"
 SUPPORT_URL = "https://github.com/naki0227/useful-map"
 KEY_DIR = Path.home() / ".appstoreconnect" / "private_keys"
 
@@ -324,9 +325,22 @@ def upload_screenshot(client: Client, set_id: str, path: Path, order: int) -> No
     })
 
 
+# 撮影に使った言語 → App Store Connect のロケール
+SCREENSHOT_LANGS = {"ja": "ja", "en": "en-US", "zh-Hans": "zh-Hans", "ko": "ko", "th": "th"}
+
+
 def cmd_screenshots(client: Client) -> None:
-    """スクリーンショットを差し替える（既存は一度消してから入れ直す）。"""
-    locale = os.environ.get("SCREENSHOT_LOCALE", "ja")
+    """スクリーンショットを 5 言語ぶん差し替える。
+
+    売り場ごとにその言語の画面を出す。日本語の画面だけを全世界へ出すと、
+    その言語しか読めない人には何のアプリか分からない。
+    """
+    for language, locale in SCREENSHOT_LANGS.items():
+        print(f"--- {locale}")
+        push_screenshots(client, language, locale)
+
+
+def push_screenshots(client: Client, language: str, locale: str) -> None:
     bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
     app = find_app(client, bundle_id)
     if app is None:
@@ -345,9 +359,10 @@ def cmd_screenshots(client: Client) -> None:
                       params={"limit": 50})["data"]
 
     for directory, display_type in SCREENSHOT_SETS.items():
-        images = sorted((SCREENSHOT_DIR / directory).glob("*.png"))
+        images = sorted((SCREENSHOT_DIR / language / directory).glob("*.png"))
         if not images:
-            raise SystemExit(f"{directory} に画像がありません。make screenshots を実行してください")
+            raise SystemExit(
+                f"{language}/{directory} に画像がありません。make screenshots を実行してください")
 
         existing = next((item for item in sets
                          if item["attributes"]["screenshotDisplayType"] == display_type), None)
@@ -367,8 +382,7 @@ def cmd_screenshots(client: Client) -> None:
 
         for order, image in enumerate(images):
             upload_screenshot(client, existing["id"], image, order)
-            print(f"  {directory}/{image.name}")
-        print(f"{display_type}: {len(images)} 枚")
+        print(f"  {display_type}: {len(images)} 枚")
 
 
 # 年齢制限の回答。すべて該当なしで 4+ になる。
@@ -416,7 +430,7 @@ AGE_RATING = {
 
 
 def cmd_declare(client: Client) -> None:
-    """年齢制限と権利表明を答える。"""
+    """カテゴリ・著作権表示・年齢制限・権利表明を答える。"""
     bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
     app = find_app(client, bundle_id)
     if app is None:
@@ -430,6 +444,24 @@ def cmd_declare(client: Client) -> None:
     print("権利表明: 第三者コンテンツを含まない")
 
     info = client.get(f"/v1/apps/{app['id']}/appInfos")["data"][0]
+
+    # カテゴリ。経路を出すアプリなので Navigation、旅行でも使うので Travel を副に。
+    client.patch(f"/v1/appInfos/{info['id']}", {
+        "data": {"type": "appInfos", "id": info["id"], "relationships": {
+            "primaryCategory": {"data": {"type": "appCategories", "id": "NAVIGATION"}},
+            "secondaryCategory": {"data": {"type": "appCategories", "id": "TRAVEL"}},
+        }}
+    })
+    print("カテゴリ: Navigation / Travel")
+
+    # 著作権表示。年と権利者名だけでよい。
+    version = editable_version(client, app["id"])
+    client.patch(f"/v1/appStoreVersions/{version['id']}", {
+        "data": {"type": "appStoreVersions", "id": version["id"],
+                 "attributes": {"copyright": COPYRIGHT}}
+    })
+    print(f"著作権表示: {COPYRIGHT}")
+
     declaration = client.get(f"/v1/appInfos/{info['id']}/ageRatingDeclaration")["data"]
     client.patch(f"/v1/ageRatingDeclarations/{declaration['id']}", {
         "data": {"type": "ageRatingDeclarations", "id": declaration["id"],
@@ -483,6 +515,39 @@ def cmd_availability(client: Client) -> None:
     print(f"配信地域: {len(territories)} 地域を有効にしました")
 
 
+def cmd_price(client: Client) -> None:
+    """無料で配信する設定を入れる。"""
+    bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
+    app = find_app(client, bundle_id)
+    if app is None:
+        raise SystemExit(f"{bundle_id} のアプリレコードがありません")
+
+    # 価格は「どこか 1 つの国の価格」を基準に決め、他国は Apple が換算する。
+    # 無料なので、基準国の 0 円にあたる価格ポイントを探す。
+    points = client.get(f"/v1/apps/{app['id']}/appPricePoints",
+                        params={"filter[territory]": "JPN", "limit": 200})["data"]
+    free = next((p for p in points if p["attributes"]["customerPrice"] in ("0", "0.00")), None)
+    if free is None:
+        raise SystemExit("無料の価格ポイントが見つかりません")
+
+    client.post("/v1/appPriceSchedules", {
+        "data": {
+            "type": "appPriceSchedules",
+            "relationships": {
+                "app": {"data": {"type": "apps", "id": app["id"]}},
+                "baseTerritory": {"data": {"type": "territories", "id": "JPN"}},
+                "manualPrices": {"data": [{"type": "appPrices", "id": "${price}"}]},
+            },
+        },
+        "included": [{
+            "type": "appPrices", "id": "${price}",
+            "relationships": {"appPricePoint": {
+                "data": {"type": "appPricePoints", "id": free["id"]}}},
+        }],
+    })
+    print("価格: 無料（基準は日本）")
+
+
 def cmd_build(client: Client) -> None:
     """処理の終わった最新ビルドを、編集中のバージョンへ紐付ける。
 
@@ -521,6 +586,52 @@ def cmd_build(client: Client) -> None:
           f"{version['attributes']['versionString']} に紐付けました")
 
 
+def cmd_submit(client: Client) -> None:
+    """審査へ提出する。
+
+    提出は 3 段階。まとめ（reviewSubmission）を作り、そこへ対象のバージョンを
+    足して、最後に submitted へ切り替える。切り替えるまでは何も起きない。
+    """
+    bundle_id = os.environ.get("BUNDLE_ID", "com.usefulmap.UsefulMap")
+    app = find_app(client, bundle_id)
+    if app is None:
+        raise SystemExit(f"{bundle_id} のアプリレコードがありません")
+    version = editable_version(client, app["id"])
+
+    build = client.get(f"/v1/appStoreVersions/{version['id']}/build")["data"]
+    if not build:
+        raise SystemExit("ビルドが紐付いていません。先に make asc-build を実行してください")
+
+    # 途中まで作りかけの提出が残っていれば使い回す。
+    existing = client.get("/v1/reviewSubmissions", params={
+        "filter[app]": app["id"], "filter[state]": "READY_FOR_REVIEW", "limit": 1})["data"]
+    submission = existing[0] if existing else client.post("/v1/reviewSubmissions", {
+        "data": {"type": "reviewSubmissions", "attributes": {"platform": "IOS"},
+                 "relationships": {"app": {"data": {"type": "apps", "id": app["id"]}}}}
+    })["data"]
+
+    items = client.get(f"/v1/reviewSubmissions/{submission['id']}/items",
+                       params={"limit": 10})["data"]
+    if not items:
+        client.post("/v1/reviewSubmissionItems", {
+            "data": {"type": "reviewSubmissionItems",
+                     "relationships": {
+                         "reviewSubmission": {"data": {"type": "reviewSubmissions",
+                                                       "id": submission["id"]}},
+                         "appStoreVersion": {"data": {"type": "appStoreVersions",
+                                                      "id": version["id"]}}}}
+        })
+
+    result = client.patch(f"/v1/reviewSubmissions/{submission['id']}", {
+        "data": {"type": "reviewSubmissions", "id": submission["id"],
+                 "attributes": {"submitted": True}}
+    })
+    state = result["data"]["attributes"]["state"]
+    print(f"提出しました: {app['attributes']['name']} "
+          f"{version['attributes']['versionString']} (build {build['attributes']['version']})")
+    print(f"状態: {state}")
+
+
 def cmd_check(client: Client) -> None:
     """投入する内容を、送らずに確認する。"""
     metadata = load_metadata()
@@ -536,7 +647,8 @@ def cmd_check(client: Client) -> None:
 
 COMMANDS = {"apps": cmd_apps, "status": cmd_status, "check": cmd_check,
             "push": cmd_push, "screenshots": cmd_screenshots, "build": cmd_build,
-            "declare": cmd_declare, "availability": cmd_availability}
+            "declare": cmd_declare, "availability": cmd_availability,
+            "submit": cmd_submit, "price": cmd_price}
 
 if __name__ == "__main__":
     name = sys.argv[1] if len(sys.argv) > 1 else "status"

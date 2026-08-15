@@ -17,7 +17,7 @@ SCREENSHOT_DIR := artifacts/screenshots
 SIGNING_OVERRIDES := CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
 	CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM)
 
-.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run screenshots archive export-ipa upload asc-venv asc-status asc-apps asc-check asc-push asc-screenshots asc-build quality all clean
+.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run screenshots archive export-ipa upload asc-venv asc-status asc-apps asc-check asc-push asc-screenshots asc-build asc-declare asc-availability asc-price asc-submit quality all clean
 
 help: ## 使えるターゲット一覧
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -86,20 +86,30 @@ sim-run: project ## シミュレータへインストールして起動する
 	xcrun simctl install booted build/sim/Build/Products/Debug-iphonesimulator/UsefulMap.app
 	xcrun simctl launch booted $(BUNDLE_ID)
 
-screenshots: project ## App Store 用スクリーンショットを 2 サイズ撮る
+# 提出する言語。売り場ごとに、その言語の画面を出す。
+SCREENSHOT_LANGS ?= ja en zh-Hans ko th
+
+screenshots: project ## App Store 用スクリーンショットを 5 言語 x 2 サイズ撮る
 	@rm -rf $(SCREENSHOT_DIR)
-	$(MAKE) capture-screenshots DEST="$(SCREENSHOT_IPHONE)" OUT=iphone-6.9
-	$(MAKE) capture-screenshots DEST="$(SCREENSHOT_IPAD)" OUT=ipad-13
+	@for lang in $(SCREENSHOT_LANGS); do \
+		$(MAKE) capture-screenshots DEST="$(SCREENSHOT_IPHONE)" OUT=$$lang/iphone-6.9 LANG_ID=$$lang; \
+		$(MAKE) capture-screenshots DEST="$(SCREENSHOT_IPAD)" OUT=$$lang/ipad-13 LANG_ID=$$lang; \
+	done
 	@echo "書き出し先: $(SCREENSHOT_DIR)/final/"
 
 # 1 サイズぶんを撮って xcresult の添付から PNG を取り出す。
 # 添付名（01-map-home など）がそのままファイル名になる。
 capture-screenshots:
 	@rm -rf $(SCREENSHOT_DIR)/$(OUT).xcresult
+	@mkdir -p $(SCREENSHOT_DIR)/$(dir $(OUT))
+	# TEST_RUNNER_ で始まる環境変数は、接頭辞を外してテストランナーへ渡る。
+	# ビルド設定として書いても届かないので、環境変数として渡す。
+	TEST_RUNNER_SCREENSHOT_LANG=$(LANG_ID) \
 	xcodebuild test -project UsefulMap.xcodeproj -scheme UsefulMap \
 		-destination "$(DEST)" \
 		-only-testing:UsefulMapUITests/ScreenshotTests \
 		-resultBundlePath $(SCREENSHOT_DIR)/$(OUT).xcresult
+	@rm -rf $(SCREENSHOT_DIR)/raw/$(OUT)
 	@mkdir -p $(SCREENSHOT_DIR)/raw/$(OUT) $(SCREENSHOT_DIR)/final/$(OUT)
 	xcrun xcresulttool export attachments \
 		--path $(SCREENSHOT_DIR)/$(OUT).xcresult \
@@ -153,6 +163,18 @@ asc-screenshots: check-asc ## スクリーンショットを差し替える
 
 asc-build: check-asc ## 処理の終わったビルドをバージョンへ紐付ける
 	$(ASC_PY) scripts/asc.py build
+
+asc-declare: check-asc ## 年齢制限と権利表明を回答する
+	$(ASC_PY) scripts/asc.py declare
+
+asc-availability: check-asc ## 配信地域を設定する
+	$(ASC_PY) scripts/asc.py availability
+
+asc-price: check-asc ## 無料配信の価格を設定する
+	$(ASC_PY) scripts/asc.py price
+
+asc-submit: check-asc ## 審査へ提出する
+	$(ASC_PY) scripts/asc.py submit
 
 upload: export-ipa ## .ipa を App Store Connect へ上げる
 	@test -n "$(ASC_KEY_ID)" || (echo "ASC_KEY_ID が未設定です" && exit 1)

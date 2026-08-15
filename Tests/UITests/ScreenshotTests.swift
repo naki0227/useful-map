@@ -14,10 +14,25 @@ final class ScreenshotTests: XCTestCase {
         super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
-        // 提出用は日本語で撮る。撮る端末の言語設定に左右されないよう固定する。
+        // 撮る言語は外から渡す。指定が無ければ日本語。
+        // 端末の言語設定には左右させない（同じ端末で 5 言語ぶん撮るため）。
+        let language = ProcessInfo.processInfo.environment["SCREENSHOT_LANG"] ?? "ja"
         app.launchArguments = ["-UITestMode", "-UITestScenario", "standard",
-                               "-AppleLanguages", "(ja)", "-AppleLocale", "ja_JP"]
+                               "-AppleLanguages", "(\(language))",
+                               "-AppleLocale", Self.locale(for: language)]
         app.launch()
+    }
+
+    /// 言語に対応するロケール。日付や時刻の書式がこれで決まる。
+    private static func locale(for language: String) -> String {
+        switch language {
+        case "ja": return "ja_JP"
+        case "en": return "en_US"
+        case "zh-Hans": return "zh_CN"
+        case "ko": return "ko_KR"
+        case "th": return "th_TH"
+        default: return "en_US"
+        }
     }
 
     /// 画面を撮って添付する。名前がそのままファイル名になる。
