@@ -18,3 +18,9 @@ contract-watch/playwright-report/
 
 # macOS
 .DS_Store
+
+# 署名・配信の鍵。リポジトリは公開なので、誤って入らないように明示的に弾く。
+*.p8
+*.p12
+*.mobileprovision
+*.cer
