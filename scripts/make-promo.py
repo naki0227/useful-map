@@ -7,9 +7,11 @@
 手作業で切らずにスクリプトにしてあるのは、撮り直すたびに同じ編集を
 やり直せるようにするため。区間の秒数だけ直せば作り直せる。
 
-    scripts/.venv/bin/python scripts/make-promo.py <raw.mov> <out.mp4> [音楽.mp3] [--store]
+    scripts/.venv/bin/python scripts/make-promo.py <raw.mov> <out.mp4> [音楽.mp3] [--store] [--size WxH]
 
 --store を付けると App Store の「Appプレビュー」向けに 30 秒以内へ詰める。
+--size で出力の大きさを指定できる。画面は横 80% に縮めて置くので、
+素材がそれより大きければ拡大は起きない（1206 の素材でも 1320 で出せる）。
 """
 import subprocess
 import sys
@@ -155,7 +157,11 @@ def main() -> None:
     marks = load_markers(raw.parent / "markers.txt", raw)
 
     global CANVAS
-    width, height = probe(raw, "stream=width,height").split()
+    override = next((a for a in arguments if a.startswith("--size=")), None)
+    if override:
+        width, height = override.split("=")[1].split("x")
+    else:
+        width, height = probe(raw, "stream=width,height").split()
     CANVAS = (int(width), int(height))
 
     # 1. マーカーの位置で切り出し、速度を掛ける。
