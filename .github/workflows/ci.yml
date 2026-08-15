@@ -84,6 +84,7 @@ jobs:
             -destination "$SIMULATOR" \
             -only-testing:UsefulMapUITests \
             -skip-testing:UsefulMapUITests/ScreenshotTests \
+            -skip-testing:UsefulMapUITests/PromoRecording \
             -resultBundlePath artifacts/e2e.xcresult
       - uses: actions/upload-artifact@v4
         if: failure()

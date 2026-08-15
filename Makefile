@@ -17,7 +17,7 @@ SCREENSHOT_DIR := artifacts/screenshots
 SIGNING_OVERRIDES := CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
 	CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM)
 
-.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run screenshots archive export-ipa upload asc-venv asc-status asc-apps asc-check asc-push asc-screenshots asc-build asc-declare asc-availability asc-price asc-profile asc-submit quality all clean
+.PHONY: help setup project test unit e2e lint dead-code dup contract contract-unit urls generate-format verify-format devices check-device device-build device-install device-run sim-run screenshots archive export-ipa upload asc-venv asc-status asc-apps asc-check asc-push asc-screenshots asc-build asc-declare asc-availability asc-price asc-profile asc-submit promo quality all clean
 
 help: ## 使えるターゲット一覧
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -38,7 +38,8 @@ contract-unit: ## 契約監視の単体テスト（ネットワーク不要）
 e2e: project ## E2E（XCUITest / シミュレータ）
 	xcodebuild test -project UsefulMap.xcodeproj -scheme UsefulMap \
 		-destination "$(SIMULATOR)" -only-testing:UsefulMapUITests \
-		-skip-testing:UsefulMapUITests/ScreenshotTests
+		-skip-testing:UsefulMapUITests/ScreenshotTests \
+		-skip-testing:UsefulMapUITests/PromoRecording
 
 test: unit contract-unit e2e ## テスト一式
 
@@ -185,6 +186,10 @@ upload: export-ipa ## .ipa を App Store Connect へ上げる
 	xcrun altool --upload-app --type ios \
 		--file $(EXPORT_DIR)/UsefulMap.ipa \
 		--apiKey $(ASC_KEY_ID) --apiIssuer $(ASC_ISSUER_ID)
+
+promo: ## PV を撮って組み立てる（素材の撮影から書き出しまで）
+	scripts/record-promo.sh artifacts/promo
+	$(ASC_PY) scripts/make-promo.py artifacts/promo/raw.mov artifacts/promo/promo.mp4
 
 urls: ## 手動検証用に Primary / Official URL を出力する
 	cd contract-watch && node src/print-urls.mjs $(WALLCLOCK)
