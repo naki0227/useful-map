@@ -336,7 +336,8 @@ Useful Map ช่วยให้คุณตัดสินใจว่า "ต�
 端末の言語設定に従って自動的に切り替わります。
 ```
 
-**Contact Information**: 氏名・電話番号・メールアドレス（`nakinakipal@gmail.com`）を入力する。
+**Contact Information**: 氏名・電話番号・メールアドレスを入力する。
+  Apple ID のものを使う（リポジトリが公開なので、ここには書かない）。
 
 ---
 
@@ -404,7 +405,7 @@ Useful Map（以下「本アプリ」）は、利用者のプライバシーを�
 本ポリシーを変更する場合は、本ページの内容を更新します。
 
 8. お問い合わせ
-nakinakipal@gmail.com
+<Apple ID のメールアドレス>
 ```
 
 ### English
@@ -448,7 +449,7 @@ The app is suitable for all ages and collects no personal information from any u
 Any changes will be reflected on this page.
 
 8. Contact
-nakinakipal@gmail.com
+<Apple ID のメールアドレス>
 ```
 
 > 中国語・韓国語・タイ語のポリシーは上記日本語版の忠実な翻訳を用意すれば足りる。
