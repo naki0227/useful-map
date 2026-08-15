@@ -224,7 +224,12 @@ final class UsefulMapUITests: XCTestCase {
         XCTAssertTrue(saveButton.waitForExistence(timeout: timeout()))
         saveButton.tap()
         // confirmationDialog のボタンは階層上に二重に現れるため firstMatch で解決する。
-        app.buttons[A11y.saveLabelOption("home")].firstMatch.tap()
+        // シートが出るまで待たずに押すと、遅いマシンでタップが空振りする。
+        let homeLabel = app.buttons[A11y.saveLabelOption("home")].firstMatch
+        XCTAssertTrue(homeLabel.waitForExistence(timeout: timeout()), "保存先ラベルの選択が出ない")
+        homeLabel.tap()
+
+        // 保存した時点で地図のショートカットに出る（画面を離れて戻る必要がない）。
         XCTAssertTrue(app.buttons["自宅"].firstMatch.waitForExistence(timeout: timeout()), "ラベルが反映されない")
 
         tab("bookmark").tap()
