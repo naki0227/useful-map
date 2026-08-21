@@ -42,6 +42,10 @@ class Duplicate(Exception):
     """すでに同じロケールがある。作成ではなく更新へ回す合図。"""
 
 
+class NotReady(Exception):
+    """Apple 側の反映がまだ。少し待てば通る。"""
+
+
 class Client:
     def __init__(self) -> None:
         self.session = requests.Session()
@@ -53,6 +57,8 @@ class Client:
         if not response.ok:
             if response.status_code == 409 and "INVALID.DUPLICATE" in response.text:
                 raise Duplicate(response.text)
+            if response.status_code == 409 and "not ready to be submitted" in response.text:
+                raise NotReady(response.text)
             raise SystemExit(f"{method} {url} → {response.status_code}\n{response.text}")
         return response.json() if response.content else {}
 
@@ -184,11 +190,31 @@ def cmd_status(client: Client) -> None:
         print("ビルド  : まだ届いていません")
 
 
+# 一度でも世に出た状態。ここに入った版があれば、以後は初回リリースではない。
+RELEASED_STATES = [
+    "READY_FOR_SALE",
+    "PENDING_DEVELOPER_RELEASE",
+    "PENDING_APPLE_RELEASE",
+    "PROCESSING_FOR_APP_STORE",
+    "REPLACED_WITH_NEW_VERSION",
+    "REMOVED_FROM_SALE",
+]
+
+# 編集を受け付ける状態。却下された後も直して出し直せる。
+EDITABLE_STATES = [
+    "PREPARE_FOR_SUBMISSION",
+    "REJECTED",
+    "DEVELOPER_REJECTED",
+    "METADATA_REJECTED",
+    "INVALID_BINARY",
+]
+
+
 def editable_version(client: Client, app_id: str) -> dict:
-    """まだ編集できるバージョン（審査提出前）を取る。"""
+    """まだ編集できるバージョンを取る。"""
     versions = client.get(
         f"/v1/apps/{app_id}/appStoreVersions",
-        params={"filter[appStoreState]": "PREPARE_FOR_SUBMISSION", "limit": 1},
+        params={"filter[appStoreState]": ",".join(EDITABLE_STATES), "limit": 1},
     )["data"]
     if not versions:
         raise SystemExit("編集できるバージョンがありません（審査中か、公開済みです）")
@@ -240,11 +266,12 @@ def cmd_push(client: Client) -> None:
     print(f"対象: {app['attributes']['name']} / {version['attributes']['versionString']}")
 
     # 初回リリースには「このバージョンの新機能」が無く、送ると 409 になる。
+    # 一度でも公開された版があるかどうかで判断する。
+    # 却下されて出し直す場合も、まだ公開されていなければ初回のまま。
     all_versions = client.get(f"/v1/apps/{app_id}/appStoreVersions",
                               params={"limit": 50})["data"]
-    is_first_release = all(
-        item["attributes"]["appStoreState"] == "PREPARE_FOR_SUBMISSION"
-        for item in all_versions
+    is_first_release = not any(
+        item["attributes"]["appStoreState"] in RELEASED_STATES for item in all_versions
     )
     if is_first_release:
         print("  初回リリースのため What's New は送りません")
@@ -276,9 +303,25 @@ def cmd_push(client: Client) -> None:
                                                                "id": version_id}}}})
         print(f"  {locale} を投入")
 
-    # 審査メモ。サインイン不要なので、そこも明示しておく。
+    # 審査メモと連絡先。
+    #
+    # 連絡先が空だと Guideline 2.1 Information Needed で却下される。
+    # 提出時に API 側では弾かれないので、ここで必ず入れる（実際に一度これで落ちた）。
+    # 値は環境変数から渡す。リポジトリは公開なので、個人の連絡先は置かない。
+    contact = {
+        "contactFirstName": os.environ.get("ASC_CONTACT_FIRST_NAME"),
+        "contactLastName": os.environ.get("ASC_CONTACT_LAST_NAME"),
+        "contactPhone": os.environ.get("ASC_CONTACT_PHONE"),
+        "contactEmail": os.environ.get("ASC_CONTACT_EMAIL"),
+    }
+    missing = [key for key, value in contact.items() if not value]
+    if missing:
+        raise SystemExit(
+            "審査の連絡先が未設定です。次を環境変数で渡してください:\n  "
+            + "\n  ".join(f"{k.replace('contact', 'ASC_CONTACT_').upper()}" for k in missing))
+
     detail = client.get(f"/v1/appStoreVersions/{version_id}/appStoreReviewDetail")["data"]
-    attributes = {"notes": review_notes(), "demoAccountRequired": False}
+    attributes = {"notes": review_notes(), "demoAccountRequired": False, **contact}
     if detail:
         client.patch(f"/v1/appStoreReviewDetails/{detail['id']}",
                      {"data": {"type": "appStoreReviewDetails", "id": detail["id"],
@@ -288,7 +331,7 @@ def cmd_push(client: Client) -> None:
                     {"data": {"type": "appStoreReviewDetails", "attributes": attributes,
                               "relationships": {"appStoreVersion": {
                                   "data": {"type": "appStoreVersions", "id": version_id}}}}})
-    print("  審査メモを投入")
+    print(f"  審査メモと連絡先を投入（{contact['contactLastName']} {contact['contactFirstName']}）")
 
 
 # 撮影したサイズ → App Store Connect の表示タイプ
@@ -648,9 +691,12 @@ def cmd_submit(client: Client) -> None:
     if not build:
         raise SystemExit("ビルドが紐付いていません。先に make asc-build を実行してください")
 
-    # 途中まで作りかけの提出が残っていれば使い回す。
+    # 作りかけ、または却下されて未解決の提出があれば、それを出し直す。
+    # 新しく作るとバージョンが二重に載り、ITEM_PART_OF_ANOTHER_SUBMISSION で弾かれる。
     existing = client.get("/v1/reviewSubmissions", params={
-        "filter[app]": app["id"], "filter[state]": "READY_FOR_REVIEW", "limit": 1})["data"]
+        "filter[app]": app["id"],
+        "filter[state]": "READY_FOR_REVIEW,UNRESOLVED_ISSUES",
+        "limit": 1})["data"]
     submission = existing[0] if existing else client.post("/v1/reviewSubmissions", {
         "data": {"type": "reviewSubmissions", "attributes": {"platform": "IOS"},
                  "relationships": {"app": {"data": {"type": "apps", "id": app["id"]}}}}
@@ -668,10 +714,21 @@ def cmd_submit(client: Client) -> None:
                                                       "id": version["id"]}}}}
         })
 
-    result = client.patch(f"/v1/reviewSubmissions/{submission['id']}", {
-        "data": {"type": "reviewSubmissions", "id": submission["id"],
-                 "attributes": {"submitted": True}}
-    })
+    # メタデータを直した直後は「まだ提出できる状態ではない」と返る。
+    # Apple 側の反映を待つだけなので、通るまで試す。
+    deadline = time.time() + 15 * 60
+    while True:
+        try:
+            result = client.patch(f"/v1/reviewSubmissions/{submission['id']}", {
+                "data": {"type": "reviewSubmissions", "id": submission["id"],
+                         "attributes": {"submitted": True}}
+            })
+            break
+        except NotReady:
+            if time.time() > deadline:
+                raise SystemExit("15 分待っても提出できる状態になりませんでした")
+            print("  反映待ち…")
+            time.sleep(60)
     state = result["data"]["attributes"]["state"]
     print(f"提出しました: {app['attributes']['name']} "
           f"{version['attributes']['versionString']} (build {build['attributes']['version']})")
