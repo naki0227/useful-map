@@ -26,7 +26,7 @@ jobs:
       BUILD_NUMBER: ${{ github.run_number }}
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-      ASC_PRIVATE_KEYS_DIR: ${{ runner.temp }}/dayline-app-store-keys
+      ASC_PRIVATE_KEYS_DIR: /tmp/dayline-app-store-keys
 
     steps:
       - name: Checkout Dayline at reviewed commit
