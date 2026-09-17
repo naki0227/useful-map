@@ -1,0 +1,110 @@
+name: Dayline TestFlight (temporary)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/dayline-testflight.yml
+
+concurrency:
+  group: dayline-testflight
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deliver:
+    name: Build and upload Dayline
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      APPLE_TEAM_ID: X97ZJZ42VZ
+      BUNDLE_ID: com.enludus.Dayline
+      ASC_PROFILE_NAME: Dayline App Store
+      MARKETING_VERSION: 0.1.0
+      BUILD_NUMBER: ${{ github.run_number }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEYS_DIR: ${{ runner.temp }}/dayline-app-store-keys
+
+    steps:
+      - name: Checkout Dayline at reviewed commit
+        uses: actions/checkout@v4
+        with:
+          repository: naki0227/dayline
+          ref: 84e0b3ee69eb200e70d603101a08c0f8a5a2e5b9
+          path: dayline
+
+      - name: Select Xcode
+        uses: ./dayline/.github/actions/select-toolchain
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios,x86_64-apple-darwin
+
+      - name: Install build tools
+        run: brew install xcodegen
+
+      - name: Prepare signing identity and App Store Connect key
+        env:
+          DIST_CERT_P12: ${{ secrets.DIST_CERT_P12 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          : "${DIST_CERT_P12:?DIST_CERT_P12 secret is required}"
+          : "${DIST_CERT_PASSWORD:?DIST_CERT_PASSWORD secret is required}"
+          : "${ASC_KEY_ID:?ASC_KEY_ID secret is required}"
+          : "${ASC_ISSUER_ID:?ASC_ISSUER_ID secret is required}"
+          : "${ASC_KEY_P8:?ASC_KEY_P8 secret is required}"
+
+          keychain="$RUNNER_TEMP/dayline-build.keychain-db"
+          keychain_password=$(uuidgen)
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+
+          echo "$DIST_CERT_P12" | base64 --decode > "$RUNNER_TEMP/dayline-distribution.p12"
+          security import "$RUNNER_TEMP/dayline-distribution.p12" -k "$keychain" \
+            -P "$DIST_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security -A
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" \
+            $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/dayline-distribution.p12"
+          security find-identity -v -p codesigning "$keychain"
+
+          mkdir -p "$ASC_PRIVATE_KEYS_DIR"
+          echo "$ASC_KEY_P8" | base64 --decode > "$ASC_PRIVATE_KEYS_DIR/AuthKey_$ASC_KEY_ID.p8"
+          chmod 600 "$ASC_PRIVATE_KEYS_DIR/AuthKey_$ASC_KEY_ID.p8"
+
+      - name: Create App Store profile and export IPA
+        working-directory: dayline
+        run: |
+          set -euo pipefail
+          make asc-venv
+          make asc-profile
+          make export-ipa
+
+      - name: Keep IPA as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dayline-0.1.0-${{ github.run_number }}
+          path: dayline/build/export/Dayline.ipa
+          if-no-files-found: error
+
+      - name: Upload to App Store Connect
+        working-directory: dayline
+        run: make upload
+
+      - name: Attach processed build to the app version
+        working-directory: dayline
+        run: make asc-build
+
+      - name: Remove ephemeral credentials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/dayline-build.keychain-db" 2>/dev/null || true
+          rm -rf "$ASC_PRIVATE_KEYS_DIR"
