@@ -1,0 +1,54 @@
+name: CD / Dayline TestFlight Status
+
+on:
+  workflow_dispatch:
+    inputs:
+      dayline_sha:
+        description: Exact Dayline main SHA to inspect
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: naki0227/dayline
+          ref: ${{ inputs.dayline_sha }}
+          persist-credentials: false
+      - name: Verify pinned Dayline main
+        env:
+          DAYLINE_SHA: ${{ inputs.dayline_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$DAYLINE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          test "$(git rev-parse HEAD)" = "$DAYLINE_SHA"
+          remote_main=$(git ls-remote https://github.com/naki0227/dayline.git refs/heads/main)
+          test "${remote_main%%[[:space:]]*}" = "$DAYLINE_SHA"
+      - name: Inspect App Store Connect builds
+        env:
+          BUNDLE_ID: ${{ vars.DAYLINE_BUNDLE_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_PRIVATE_KEYS_DIR: ${{ runner.temp }}/dayline-keys
+        run: |
+          set -euo pipefail
+          : "${ASC_KEY_ID:?ASC_KEY_ID secret is required}"
+          : "${ASC_ISSUER_ID:?ASC_ISSUER_ID secret is required}"
+          : "${ASC_KEY_P8:?ASC_KEY_P8 secret is required}"
+          test "$BUNDLE_ID" = com.enludus.Dayline
+          mkdir -p "$ASC_PRIVATE_KEYS_DIR"
+          printf '%s' "$ASC_KEY_P8" | base64 --decode \
+            > "$ASC_PRIVATE_KEYS_DIR/AuthKey_$ASC_KEY_ID.p8"
+          chmod 600 "$ASC_PRIVATE_KEYS_DIR/AuthKey_$ASC_KEY_ID.p8"
+          make asc-venv
+          make asc-status
+      - name: Remove ephemeral API key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/dayline-keys"/*.p8
