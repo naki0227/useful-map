@@ -43,7 +43,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-      - run: npx --yes jscpd@4 --config .jscpd.json
+      - run: npx --yes jscpd@5.4.2 --config .jscpd.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
