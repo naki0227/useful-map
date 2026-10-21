@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: .node-version
       - run: npx --yes jscpd@4 --config .jscpd.json
       - uses: actions/upload-artifact@v4
         if: always()
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: .node-version
       - working-directory: contract-watch
         run: node --test "tests/unit/*.test.mjs"
       # format.json だけ直して Swift を再生成し忘れた状態を弾く
