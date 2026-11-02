@@ -100,3 +100,8 @@ schemes:
       gatherCoverageData: true
       targets:
         - UsefulMapUITests
+        - package: UsefulMapKit/DomainTests
+        - package: UsefulMapKit/DataTests
+        - package: UsefulMapKit/InfrastructureTests
+        - package: UsefulMapKit/PresentationTests
+        - package: UsefulMapKit/ArchitectureTests

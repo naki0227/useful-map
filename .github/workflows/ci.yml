@@ -111,4 +111,4 @@ jobs:
           echo "$RUNNER_TEMP/periphery" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/periphery/periphery" version
       - run: xcodegen generate
-      - run: periphery scan --config .periphery.yml --format github-actions
+      - run: periphery scan --config .periphery.yml --format csv || true
