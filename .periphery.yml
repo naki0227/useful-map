@@ -2,8 +2,9 @@
 project: UsefulMap.xcodeproj
 schemes:
   - UsefulMap
-targets:
-  - UsefulMap
+# 3.x はインデックスにある全ファイル（SwiftPM の各モジュールを含む）を調べる。
+# UI テストからの参照は「使われている」根拠にしない（2.x で targets を UsefulMap に絞っていたときと同じ扱い）。
+exclude_tests: true
 
 # SwiftUI / Codable / プロトコル準拠は動的に使われるため、既定の保守的な扱いを維持する。
 retain_public: false
@@ -11,6 +12,14 @@ retain_objc_accessible: true
 retain_assign_only_properties: true
 skip_build: false
 strict: true
+# GitHub Actions 形式の出力に必要（3.x）。
+relative_results: true
+
+# 報告はアプリ本体（App/）に限る。2.x で targets を UsefulMap に絞っていたときと同じ範囲。
+# SwiftPM の各モジュールは参照の解析には使うが、パッケージのテストがビルドされないため、
+# テストからだけ使うコードが未使用に見える。モジュール側の指摘の整理は別の作業で行う。
+report_include:
+  - "App/**"
 
 # UI テスト専用の注入コードは Release では未使用に見えるため除外する。
 report_exclude:

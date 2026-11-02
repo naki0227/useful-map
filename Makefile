@@ -23,7 +23,7 @@ help: ## 使えるターゲット一覧
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 setup: ## 開発に必要なツールを入れる
-	brew install xcodegen swiftlint peripheryapp/periphery/periphery
+	brew install xcodegen swiftlint periphery
 	cd contract-watch && npm install --no-package-lock && npx playwright install chromium
 
 project: ## Xcode プロジェクトを生成する
