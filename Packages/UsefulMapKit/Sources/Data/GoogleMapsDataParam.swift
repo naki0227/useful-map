@@ -30,9 +30,9 @@ public struct DataToken: Hashable, Sendable, CustomStringConvertible {
     }
 }
 
-public enum GoogleMapsDataParam {
+enum GoogleMapsDataParam {
     /// data= 値をトークン列へ分解する。形式不正なら nil。
-    public static func parse(_ raw: String) -> [DataToken]? {
+    static func parse(_ raw: String) -> [DataToken]? {
         guard !raw.isEmpty, raw.hasPrefix("!") else { return nil }
         var tokens: [DataToken] = []
         // 先頭の "!" を落としてから "!" 区切りで分解する。
@@ -47,13 +47,13 @@ public enum GoogleMapsDataParam {
         return tokens
     }
 
-    public static func encode(_ tokens: [DataToken]) -> String {
+    static func encode(_ tokens: [DataToken]) -> String {
         tokens.map(\.encoded).joined()
     }
 
     /// ブロックヘッダの長さが後続トークン数と整合しているか検証する。
     /// Builder が生成した URL の自己整合性テスト、および契約監視の構造比較で使う。
-    public static func isStructurallyConsistent(_ tokens: [DataToken]) -> Bool {
+    static func isStructurallyConsistent(_ tokens: [DataToken]) -> Bool {
         validate(tokens, from: 0, count: tokens.count)
     }
 

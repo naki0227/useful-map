@@ -4,9 +4,9 @@ import Foundation
 ///
 /// 「最善」は所要時間のみを主要指標とする。MapKit から取得できない運賃・乗換回数は
 /// 推定も表示もしない（受け入れ条件 15）。
-public enum RouteComparator {
+enum RouteComparator {
     /// 所要時間の短い順。同着の場合は出発が早い順 → モードの安定順で決定的に並べる。
-    public static func sorted(_ options: [RouteOption]) -> [RouteOption] {
+    static func sorted(_ options: [RouteOption]) -> [RouteOption] {
         options.sorted { lhs, rhs in
             if lhs.expectedTravelTime != rhs.expectedTravelTime {
                 return lhs.expectedTravelTime < rhs.expectedTravelTime
@@ -29,12 +29,12 @@ public enum RouteComparator {
     }
 
     /// おすすめ候補（= 所要時間が最短のもの）。候補が無ければ nil。
-    public static func recommended(_ options: [RouteOption]) -> RouteOption? {
+    static func recommended(_ options: [RouteOption]) -> RouteOption? {
         sorted(options).first
     }
 
     /// モード別にまとめる。表示順は transit → walking → driving で固定する。
-    public static func groupedByMode(_ options: [RouteOption]) -> [(mode: TransportMode, options: [RouteOption])] {
+    static func groupedByMode(_ options: [RouteOption]) -> [(mode: TransportMode, options: [RouteOption])] {
         TransportMode.allCases.compactMap { mode in
             let matching = sorted(options.filter { $0.mode == mode })
             return matching.isEmpty ? nil : (mode, matching)

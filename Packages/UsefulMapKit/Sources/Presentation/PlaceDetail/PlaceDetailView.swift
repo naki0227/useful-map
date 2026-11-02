@@ -3,7 +3,7 @@ import MapKit
 import SwiftUI
 
 /// S03 場所詳細。主要 CTA は「経路」。運賃・乗換・路線情報は表示しない（仕様書 S03）。
-public struct PlaceDetailView: View {
+struct PlaceDetailView: View {
     private let place: Place
     private let dependencies: AppDependencies
     /// 下のシートに埋め込まれるため、閉じる動作は呼び出し側が持つ。
@@ -20,7 +20,7 @@ public struct PlaceDetailView: View {
         Place(name: RouteEndpoint.currentLocation.displayName, coordinate: place.coordinate)
     }
 
-    public init(place: Place,
+    init(place: Place,
                 dependencies: AppDependencies,
                 onClose: @escaping () -> Void = {},
                 onStoreChanged: @escaping () -> Void = {}) {
@@ -31,7 +31,7 @@ public struct PlaceDetailView: View {
         _viewModel = StateObject(wrappedValue: SavedViewModel(dependencies: dependencies))
     }
 
-    public var body: some View {
+    var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
             actions

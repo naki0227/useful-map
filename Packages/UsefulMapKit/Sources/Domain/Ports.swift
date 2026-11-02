@@ -51,7 +51,6 @@ public enum LocationAuthorizationStatus: String, Sendable {
 public enum LocationError: Error, Equatable, Sendable {
     case denied
     case unavailable
-    case timedOut
 }
 
 /// 位置情報は UI 主導で 1 点取得するだけなので、呼び出しは MainActor 側に閉じる。

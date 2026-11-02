@@ -7,18 +7,18 @@ import SwiftUI
 /// 上のシート = 検索欄、または経路の連鎖編集。
 /// 下のシート = 履歴、場所詳細、経路の要約。
 /// タブで地図と経路を行き来しないので、地図の文脈が切れない。
-public struct MapHomeView: View {
+struct MapHomeView: View {
     private let dependencies: AppDependencies
     @StateObject private var viewModel: MapHomeViewModel
     @EnvironmentObject private var router: AppRouter
     @State private var camera: MapCameraPosition = .automatic
 
-    public init(dependencies: AppDependencies) {
+    init(dependencies: AppDependencies) {
         self.dependencies = dependencies
         _viewModel = StateObject(wrappedValue: MapHomeViewModel(dependencies: dependencies))
     }
 
-    public var body: some View {
+    var body: some View {
         ZStack(alignment: .top) {
             map
             topSheet

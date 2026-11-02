@@ -41,8 +41,4 @@ extension RoutePlanViewModel {
               let last = table.last.flatMap({ $0 }) else { return nil }
         return Formatters.timeRange(departure: first.departure, arrival: last.arrival)
     }
-
-    public var title: String {
-        "\(plan.origin.displayName) → \(plan.destination.displayName)"
-    }
 }

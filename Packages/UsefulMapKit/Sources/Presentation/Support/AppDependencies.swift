@@ -37,51 +37,40 @@ public struct AppDependencies {
 }
 
 /// アクセシビリティ識別子。E2E から参照するため一箇所に集約する。
-public enum A11y {
-    public static let searchField = "search.field"
-    public static let searchCancel = "search.cancel"
-    public static let searchEmpty = "search.empty"
-    public static let recenterButton = "map.recenter"
-    public static let routeButton = "placeDetail.route"
-    public static let saveButton = "placeDetail.save"
-    public static let placeTitle = "placeDetail.title"
-    public static let routeCompareTitle = "routeCompare.title"
-    public static let routeEmpty = "routeCompare.empty"
-    public static let routeError = "routeCompare.error"
-    public static let editRouteButton = "routeCompare.edit"
-    public static let swapButton = "routeEditor.swap"
-    public static let addWaypointButton = "routeEditor.addWaypoint"
-    public static let closeEditorButton = "routeEditor.close"
-    public static let lastOpenedURL = "debug.lastOpenedURL"
+enum A11y {
+    static let searchField = "search.field"
+    static let recenterButton = "map.recenter"
+    static let routeButton = "placeDetail.route"
+    static let saveButton = "placeDetail.save"
+    static let placeTitle = "placeDetail.title"
+    static let routeError = "routeCompare.error"
+    static let lastOpenedURL = "debug.lastOpenedURL"
 
-    public static let walkingPaceButton = "route.walkingPace"
-    public static let swapButtonInline = "route.swap"
-    public static let currentLocationButton = "route.useCurrentLocation"
-    public static let closeRouteButton = "route.close"
-    public static let draftOrigin = "draft.origin"
-    public static let timeCondition = "time.condition"
-    public static let timePreferencePicker = "time.preference"
-    public static let datePicker = "time.date"
-    public static let pickOnMapButton = "route.pickOnMap"
-    public static let planTotal = "route.total"
-    public static let openDetailButton = "route.openDetail"
+    static let walkingPaceButton = "route.walkingPace"
+    static let swapButtonInline = "route.swap"
+    static let currentLocationButton = "route.useCurrentLocation"
+    static let closeRouteButton = "route.close"
+    static let draftOrigin = "draft.origin"
+    static let timeCondition = "time.condition"
+    static let timePreferencePicker = "time.preference"
+    static let datePicker = "time.date"
+    static let pickOnMapButton = "route.pickOnMap"
+    static let planTotal = "route.total"
 
-    public static func addWaypoint(_ index: Int) -> String { "route.addWaypoint.\(index)" }
-    public static func node(_ index: Int) -> String { "route.node.\(index)" }
-    public static func nodeField(_ index: Int) -> String { "route.node.field.\(index)" }
-    public static func segmentMode(_ index: Int) -> String { "route.segment.mode.\(index)" }
-    public static func segmentTime(_ index: Int) -> String { "route.segment.time.\(index)" }
-    public static func preset(_ id: String) -> String { "route.preset.\(id)" }
-    public static func updateKeep(_ index: Int) -> String { "route.update.keep.\(index)" }
-    public static func updateApply(_ index: Int) -> String { "route.update.apply.\(index)" }
-    public static func saveLabelOption(_ label: String) -> String { "placeDetail.saveLabel.\(label)" }
-    public static func savedPlaceMenu(_ index: Int) -> String { "saved.place.menu.\(index)" }
-    public static func savedLabelOption(_ label: String) -> String { "saved.label.\(label)" }
-    public static func searchResult(_ index: Int) -> String { "search.result.\(index)" }
-    public static func modeFilter(_ id: String) -> String { "routeCompare.mode.\(id)" }
-    public static func routeCard(_ index: Int) -> String { "routeCompare.card.\(index)" }
-    public static func detailButton(_ index: Int) -> String { "routeCompare.detail.\(index)" }
-    public static func savedPlace(_ index: Int) -> String { "saved.place.\(index)" }
-    public static func recentRoute(_ index: Int) -> String { "saved.route.\(index)" }
-    public static func recentSearch(_ index: Int) -> String { "map.recentSearch.\(index)" }
+    static func addWaypoint(_ index: Int) -> String { "route.addWaypoint.\(index)" }
+    static func node(_ index: Int) -> String { "route.node.\(index)" }
+    static func nodeField(_ index: Int) -> String { "route.node.field.\(index)" }
+    static func segmentMode(_ index: Int) -> String { "route.segment.mode.\(index)" }
+    static func segmentTime(_ index: Int) -> String { "route.segment.time.\(index)" }
+    static func preset(_ id: String) -> String { "route.preset.\(id)" }
+    static func updateKeep(_ index: Int) -> String { "route.update.keep.\(index)" }
+    static func updateApply(_ index: Int) -> String { "route.update.apply.\(index)" }
+    static func saveLabelOption(_ label: String) -> String { "placeDetail.saveLabel.\(label)" }
+    static func savedPlaceMenu(_ index: Int) -> String { "saved.place.menu.\(index)" }
+    static func savedLabelOption(_ label: String) -> String { "saved.label.\(label)" }
+    static func searchResult(_ index: Int) -> String { "search.result.\(index)" }
+    static func detailButton(_ index: Int) -> String { "routeCompare.detail.\(index)" }
+    static func savedPlace(_ index: Int) -> String { "saved.place.\(index)" }
+    static func recentRoute(_ index: Int) -> String { "saved.route.\(index)" }
+    static func recentSearch(_ index: Int) -> String { "map.recentSearch.\(index)" }
 }

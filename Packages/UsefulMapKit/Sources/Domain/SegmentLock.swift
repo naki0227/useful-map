@@ -13,10 +13,6 @@ public struct SegmentKey: Hashable, Sendable {
         self.to = to
     }
 
-    public init(_ segment: RouteSegment) {
-        self.init(from: segment.from.place.id, to: segment.to.place.id)
-    }
-
     /// 出発地と目的地を入れ替えたときの対応するキー。
     public var reversed: SegmentKey {
         SegmentKey(from: to, to: from)

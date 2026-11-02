@@ -14,19 +14,6 @@ public enum RoutePlanBuilder {
     /// 遠い結果として徒歩が長くなった場合は、RoutePlanner が再帰的に分割する。
     public static let stationSearchRadiusMeters: Double = 5_000
 
-    /// 素朴な 2 点プランを作る。
-    public static func plan(origin: RouteNode,
-                            destination: RouteNode,
-                            mode: TransportMode,
-                            timePreference: TimePreference = .now,
-                            requestedDate: Date? = nil) -> RoutePlan {
-        RoutePlan.simple(origin: origin,
-                         destination: destination,
-                         mode: mode,
-                         timePreference: timePreference,
-                         requestedDate: requestedDate)
-    }
-
     /// 公共交通プランへ駅ノードを差し込む。
     ///
     /// - Parameters:

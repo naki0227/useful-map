@@ -252,10 +252,6 @@ public struct RoutePlan: Hashable, Sendable {
         pendingUpdates.removeValue(forKey: key)
     }
 
-    public mutating func clearAllLocks() {
-        locks.removeAll()
-    }
-
     // MARK: - 編集
 
     /// 区間の移動手段を差し替える。ユーザー操作なので指定として記録する。

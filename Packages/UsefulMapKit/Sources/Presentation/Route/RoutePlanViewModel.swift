@@ -166,11 +166,6 @@ public final class RoutePlanViewModel: ObservableObject {
         reload()
     }
 
-    public func setMode(_ mode: TransportMode, at index: Int) {
-        plan.setMode(mode, at: index)
-        reload()
-    }
-
     /// 上部タブのプリセット。
     public func applyPreset(_ preset: Preset) {
         rebuild(preset: preset.mode)
@@ -274,6 +269,7 @@ public final class RoutePlanViewModel: ObservableObject {
     }
 
     /// 便を選び直す（駅は同じまま時刻だけ変える）。前後の区間は取り直す。
+    // periphery:ignore - 「時刻を押すと便を選び直せる」の確定側。選択 UI（pickingDepartureAt を受ける画面）が未実装のため、まだ呼ばれていない。
     @discardableResult
     public func pinTime(_ anchor: TimeAnchor, at index: Int) -> Task<Void, Never> {
         loadTask?.cancel()
@@ -300,6 +296,7 @@ public final class RoutePlanViewModel: ObservableObject {
         return task
     }
 
+    // periphery:ignore - 便の選び直しの解除。pinTime と同じく、選択 UI が未実装のため、まだ呼ばれていない。
     public func clearPin() {
         plan.clearPin()
         reload(recomputeAll: true)

@@ -59,10 +59,6 @@ extension RoutePlanner {
         let place: Place
         let first: RouteLeg
         let second: RouteLeg
-
-        var totalTime: TimeInterval {
-            first.expectedTravelTime + second.expectedTravelTime
-        }
     }
 
     /// 中継地点の候補を実際に検索し、直通より遅くならないものだけを返す。

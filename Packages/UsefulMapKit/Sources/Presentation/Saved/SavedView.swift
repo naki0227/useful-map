@@ -2,17 +2,17 @@ import Domain
 import SwiftUI
 
 /// S06 保存・履歴。
-public struct SavedView: View {
+struct SavedView: View {
     @StateObject private var viewModel: SavedViewModel
     @EnvironmentObject private var router: AppRouter
     private let dependencies: AppDependencies
 
-    public init(dependencies: AppDependencies) {
+    init(dependencies: AppDependencies) {
         self.dependencies = dependencies
         _viewModel = StateObject(wrappedValue: SavedViewModel(dependencies: dependencies))
     }
 
-    public var body: some View {
+    var body: some View {
         NavigationStack {
             List {
                 savedSection

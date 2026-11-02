@@ -1,4 +1,3 @@
-import Domain
 import SwiftUI
 
 /// タブは「地図」と「保存」だけ。
