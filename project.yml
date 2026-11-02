@@ -100,3 +100,10 @@ schemes:
       gatherCoverageData: true
       targets:
         - UsefulMapUITests
+        # Periphery は build-for-testing でビルドするため、ここに入れたテストからの参照も「使われている」に数える。
+        # E2E は -only-testing:UsefulMapUITests で UI テストだけを流す。
+        - package: UsefulMapKit/DomainTests
+        - package: UsefulMapKit/DataTests
+        - package: UsefulMapKit/InfrastructureTests
+        - package: UsefulMapKit/PresentationTests
+        - package: UsefulMapKit/ArchitectureTests
