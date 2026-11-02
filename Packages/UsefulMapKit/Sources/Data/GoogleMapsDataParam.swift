@@ -5,27 +5,27 @@ import Foundation
 /// `!4m18!4m17!1m5!1m1!1s0x0:0x0!2m2!1d139.7!2d35.6...` のような文字列を
 /// 「!{group}{kind}{value}」の列として構造化して扱う。文字列 diff ではなく
 /// このトークン単位で比較することで、契約監視側の差分解析（仕様書 9）と実装を揃える。
-public struct DataToken: Hashable, Sendable, CustomStringConvertible {
+struct DataToken: Hashable, Sendable, CustomStringConvertible {
     /// `!4m18` の 4。
-    public let group: Int
+    let group: Int
     /// `!4m18` の m。
-    public let kind: Character
+    let kind: Character
     /// `!4m18` の 18。
-    public let value: String
+    let value: String
 
-    public init(group: Int, kind: Character, value: String) {
+    init(group: Int, kind: Character, value: String) {
         self.group = group
         self.kind = kind
         self.value = value
     }
 
-    public var encoded: String { "!\(group)\(kind)\(value)" }
-    public var description: String { encoded }
+    var encoded: String { "!\(group)\(kind)\(value)" }
+    var description: String { encoded }
 
     /// `!4m18` のような「後続 n トークンを束ねる」ブロックヘッダか。
-    public var isBlockHeader: Bool { kind == "m" }
+    var isBlockHeader: Bool { kind == "m" }
 
-    public var blockLength: Int? {
+    var blockLength: Int? {
         isBlockHeader ? Int(value) : nil
     }
 }
