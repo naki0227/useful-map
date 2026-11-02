@@ -100,6 +100,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/select-toolchain
-      - run: brew install xcodegen periphery
+      - run: brew install xcodegen
+      # Periphery の tap の cask は今の Homebrew で拒否されるので、同じ 2.21.2 をリリースから直接入れる。
+      # （homebrew-core の 3.x は設定と出力の仕様が変わるため、上げるなら別の変更で行う）
+      - name: Install Periphery 2.21.2
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/periphery.zip" https://github.com/peripheryapp/periphery/releases/download/2.21.2/periphery-2.21.2.zip
+          echo "e5b4e802f794df230a2e4b9d5bb176626b3a9fd74ea6cf7d0d42c20ebe57fd4a  $RUNNER_TEMP/periphery.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/periphery.zip" -d "$RUNNER_TEMP/periphery"
+          chmod +x "$RUNNER_TEMP/periphery/periphery"
+          echo "$RUNNER_TEMP/periphery" >> "$GITHUB_PATH"
       - run: xcodegen generate
       - run: periphery scan --config .periphery.yml --format github-actions
