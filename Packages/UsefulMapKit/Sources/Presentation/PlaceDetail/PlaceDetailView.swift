@@ -21,9 +21,9 @@ struct PlaceDetailView: View {
     }
 
     init(place: Place,
-                dependencies: AppDependencies,
-                onClose: @escaping () -> Void = {},
-                onStoreChanged: @escaping () -> Void = {}) {
+         dependencies: AppDependencies,
+         onClose: @escaping () -> Void = {},
+         onStoreChanged: @escaping () -> Void = {}) {
         self.place = place
         self.dependencies = dependencies
         self.onClose = onClose

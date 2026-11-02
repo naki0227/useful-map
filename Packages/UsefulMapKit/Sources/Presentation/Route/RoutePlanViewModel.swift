@@ -268,8 +268,8 @@ public final class RoutePlanViewModel: ObservableObject {
         walkingPace = walkingPace.next
     }
 
-    /// 便を選び直す（駅は同じまま時刻だけ変える）。前後の区間は取り直す。
     // periphery:ignore - 「時刻を押すと便を選び直せる」の確定側。選択 UI（pickingDepartureAt を受ける画面）が未実装のため、まだ呼ばれていない。
+    /// 便を選び直す（駅は同じまま時刻だけ変える）。前後の区間は取り直す。
     @discardableResult
     public func pinTime(_ anchor: TimeAnchor, at index: Int) -> Task<Void, Never> {
         loadTask?.cancel()

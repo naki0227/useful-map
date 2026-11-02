@@ -21,7 +21,7 @@ enum Formatters {
 
     /// 所要時間の数値部と単位を分けて返す（大きく表示するカード用）。
     static func durationParts(_ interval: TimeInterval,
-                                     locale: Locale = .current) -> (value: String, unit: String) {
+                              locale: Locale = .current) -> (value: String, unit: String) {
         let totalMinutes = max(0, Int((interval / 60).rounded()))
         if totalMinutes < 60 {
             return (totalMinutes.formatted(.number.locale(locale)),
@@ -38,8 +38,8 @@ enum Formatters {
 
     /// 時刻 → "10:32"（ロケールにより "10:32 AM" などになる）
     static func clock(_ date: Date,
-                             timeZone: TimeZone = .current,
-                             locale: Locale = .current) -> String {
+                      timeZone: TimeZone = .current,
+                      locale: Locale = .current) -> String {
         var style = Date.FormatStyle.dateTime.hour().minute()
         style.locale = locale
         style.timeZone = timeZone
@@ -48,9 +48,9 @@ enum Formatters {
 
     /// 出発・到着 → "10:32 - 10:54"。どちらか欠ける場合は取得できた側だけ返す。
     static func timeRange(departure: Date?,
-                                 arrival: Date?,
-                                 timeZone: TimeZone = .current,
-                                 locale: Locale = .current) -> String? {
+                          arrival: Date?,
+                          timeZone: TimeZone = .current,
+                          locale: Locale = .current) -> String? {
         switch (departure, arrival) {
         case let (departure?, arrival?):
             let start = clock(departure, timeZone: timeZone, locale: locale)
@@ -84,9 +84,9 @@ enum Formatters {
 
     /// 履歴の相対日時 → "今日 9:32" / "昨日 18:15" / "8/12 7:41"
     static func historyTimestamp(_ date: Date,
-                                        now: Date = Date(),
-                                        timeZone: TimeZone = .current,
-                                        locale: Locale = .current) -> String {
+                                 now: Date = Date(),
+                                 timeZone: TimeZone = .current,
+                                 locale: Locale = .current) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         let time = clock(date, timeZone: timeZone, locale: locale)
