@@ -4,21 +4,14 @@ import MapKit
 
 /// タブと画面遷移の状態。
 @MainActor
-public final class AppRouter: ObservableObject {
-    public enum Tab: String, Hashable, CaseIterable, Identifiable {
+final class AppRouter: ObservableObject {
+    enum Tab: String, Hashable, CaseIterable, Identifiable {
         case map
         case saved
 
-        public var id: String { rawValue }
+        var id: String { rawValue }
 
-        public var displayName: String {
-            switch self {
-            case .map: return L10n.string("tab.map")
-            case .saved: return L10n.string("tab.saved")
-            }
-        }
-
-        public var symbolName: String {
+        var symbolName: String {
             switch self {
             case .map: return "map"
             case .saved: return "bookmark"
@@ -26,26 +19,26 @@ public final class AppRouter: ObservableObject {
         }
     }
 
-    @Published public var selectedTab: Tab = .map
+    @Published var selectedTab: Tab = .map
     /// 場所詳細（S03）に表示中の地点。
-    @Published public var detailPlace: Place?
+    @Published var detailPlace: Place?
     /// 検索シート（S02）の表示状態。
-    @Published public var isSearchPresented = false
+    @Published var isSearchPresented = false
     /// 経路を編集・表示中の ViewModel。nil なら経路は開いていない。
     /// 地図画面の上下のシートがこれを見て表示を切り替える。
-    @Published public var planViewModel: RoutePlanViewModel?
+    @Published var planViewModel: RoutePlanViewModel?
     /// 「地図で選ぶ」中に、どのノードへ反映するか。
-    @Published public var mapPickTarget: Int?
+    @Published var mapPickTarget: Int?
 
-    public init() {}
+    init() {}
 
-    public func showPlaceDetail(_ place: Place) {
+    func showPlaceDetail(_ place: Place) {
         detailPlace = place
         isSearchPresented = false
     }
 
     /// 経路を開く。地図はそのままで、上下のシートだけが切り替わる。
-    public func showRoute(_ plan: RoutePlan, dependencies: AppDependencies) {
+    func showRoute(_ plan: RoutePlan, dependencies: AppDependencies) {
         let viewModel = RoutePlanViewModel(plan: plan, dependencies: dependencies)
         planViewModel = viewModel
         detailPlace = nil
@@ -55,7 +48,7 @@ public final class AppRouter: ObservableObject {
     }
 
     /// 経路を閉じて地図に戻る。
-    public func closeRoute() {
+    func closeRoute() {
         planViewModel = nil
         mapPickTarget = nil
     }

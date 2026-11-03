@@ -5,34 +5,34 @@ import Foundation
 /// `!4m18!4m17!1m5!1m1!1s0x0:0x0!2m2!1d139.7!2d35.6...` のような文字列を
 /// 「!{group}{kind}{value}」の列として構造化して扱う。文字列 diff ではなく
 /// このトークン単位で比較することで、契約監視側の差分解析（仕様書 9）と実装を揃える。
-public struct DataToken: Hashable, Sendable, CustomStringConvertible {
+struct DataToken: Hashable, Sendable, CustomStringConvertible {
     /// `!4m18` の 4。
-    public let group: Int
+    let group: Int
     /// `!4m18` の m。
-    public let kind: Character
+    let kind: Character
     /// `!4m18` の 18。
-    public let value: String
+    let value: String
 
-    public init(group: Int, kind: Character, value: String) {
+    init(group: Int, kind: Character, value: String) {
         self.group = group
         self.kind = kind
         self.value = value
     }
 
-    public var encoded: String { "!\(group)\(kind)\(value)" }
-    public var description: String { encoded }
+    var encoded: String { "!\(group)\(kind)\(value)" }
+    var description: String { encoded }
 
     /// `!4m18` のような「後続 n トークンを束ねる」ブロックヘッダか。
-    public var isBlockHeader: Bool { kind == "m" }
+    var isBlockHeader: Bool { kind == "m" }
 
-    public var blockLength: Int? {
+    var blockLength: Int? {
         isBlockHeader ? Int(value) : nil
     }
 }
 
-public enum GoogleMapsDataParam {
+enum GoogleMapsDataParam {
     /// data= 値をトークン列へ分解する。形式不正なら nil。
-    public static func parse(_ raw: String) -> [DataToken]? {
+    static func parse(_ raw: String) -> [DataToken]? {
         guard !raw.isEmpty, raw.hasPrefix("!") else { return nil }
         var tokens: [DataToken] = []
         // 先頭の "!" を落としてから "!" 区切りで分解する。
@@ -47,13 +47,13 @@ public enum GoogleMapsDataParam {
         return tokens
     }
 
-    public static func encode(_ tokens: [DataToken]) -> String {
+    static func encode(_ tokens: [DataToken]) -> String {
         tokens.map(\.encoded).joined()
     }
 
     /// ブロックヘッダの長さが後続トークン数と整合しているか検証する。
     /// Builder が生成した URL の自己整合性テスト、および契約監視の構造比較で使う。
-    public static func isStructurallyConsistent(_ tokens: [DataToken]) -> Bool {
+    static func isStructurallyConsistent(_ tokens: [DataToken]) -> Bool {
         validate(tokens, from: 0, count: tokens.count)
     }
 

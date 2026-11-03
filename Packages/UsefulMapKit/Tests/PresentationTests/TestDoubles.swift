@@ -13,7 +13,6 @@ enum TestFixtures {
     static let tokyo = Place(name: "東京駅", latitude: 35.6812362, longitude: 139.7671248,
                              address: "東京都千代田区丸の内1丁目9")
     static let shinjuku = Place(name: "新宿御苑", latitude: 35.6852, longitude: 139.7100)
-    static let shibuya = Place(name: "渋谷スクランブルスクエア", latitude: 35.6580, longitude: 139.7016)
 
     static func date(_ hour: Int, _ minute: Int = 0, day: Int = 14) -> Date {
         var calendar = Calendar(identifier: .gregorian)

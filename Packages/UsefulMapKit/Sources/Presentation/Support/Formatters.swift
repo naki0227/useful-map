@@ -6,9 +6,9 @@ import Foundation
 /// 文言はモジュールの Localizable.strings から引き、日付・時刻・数値は Foundation の
 /// ロケール対応フォーマッタに任せる（12 時間制と 24 時間制の違いなどは自動で吸収される）。
 /// テストで固定するため、すべての関数がロケールを引数に取る。
-public enum Formatters {
+enum Formatters {
     /// 所要時間 → "22分" / "1時間5分" / "22 min" / "1 hr 5 min"
-    public static func duration(_ interval: TimeInterval, locale: Locale = .current) -> String {
+    static func duration(_ interval: TimeInterval, locale: Locale = .current) -> String {
         let totalMinutes = max(0, Int((interval / 60).rounded()))
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
@@ -20,8 +20,8 @@ public enum Formatters {
     }
 
     /// 所要時間の数値部と単位を分けて返す（大きく表示するカード用）。
-    public static func durationParts(_ interval: TimeInterval,
-                                     locale: Locale = .current) -> (value: String, unit: String) {
+    static func durationParts(_ interval: TimeInterval,
+                              locale: Locale = .current) -> (value: String, unit: String) {
         let totalMinutes = max(0, Int((interval / 60).rounded()))
         if totalMinutes < 60 {
             return (totalMinutes.formatted(.number.locale(locale)),
@@ -37,9 +37,9 @@ public enum Formatters {
     }
 
     /// 時刻 → "10:32"（ロケールにより "10:32 AM" などになる）
-    public static func clock(_ date: Date,
-                             timeZone: TimeZone = .current,
-                             locale: Locale = .current) -> String {
+    static func clock(_ date: Date,
+                      timeZone: TimeZone = .current,
+                      locale: Locale = .current) -> String {
         var style = Date.FormatStyle.dateTime.hour().minute()
         style.locale = locale
         style.timeZone = timeZone
@@ -47,10 +47,10 @@ public enum Formatters {
     }
 
     /// 出発・到着 → "10:32 - 10:54"。どちらか欠ける場合は取得できた側だけ返す。
-    public static func timeRange(departure: Date?,
-                                 arrival: Date?,
-                                 timeZone: TimeZone = .current,
-                                 locale: Locale = .current) -> String? {
+    static func timeRange(departure: Date?,
+                          arrival: Date?,
+                          timeZone: TimeZone = .current,
+                          locale: Locale = .current) -> String? {
         switch (departure, arrival) {
         case let (departure?, arrival?):
             let start = clock(departure, timeZone: timeZone, locale: locale)
@@ -69,7 +69,7 @@ public enum Formatters {
 
     /// 距離 → "450 m" / "1.2 km"。
     /// 日本国内での利用を前提に、表示ロケールに関わらずメートル法で統一する。
-    public static func distance(_ meters: Double, locale: Locale = .current) -> String {
+    static func distance(_ meters: Double, locale: Locale = .current) -> String {
         guard meters.isFinite, meters >= 0 else { return "-" }
         let measurement = meters < 1_000
             ? Measurement(value: meters.rounded(), unit: UnitLength.meters)
@@ -83,10 +83,10 @@ public enum Formatters {
     }
 
     /// 履歴の相対日時 → "今日 9:32" / "昨日 18:15" / "8/12 7:41"
-    public static func historyTimestamp(_ date: Date,
-                                        now: Date = Date(),
-                                        timeZone: TimeZone = .current,
-                                        locale: Locale = .current) -> String {
+    static func historyTimestamp(_ date: Date,
+                                 now: Date = Date(),
+                                 timeZone: TimeZone = .current,
+                                 locale: Locale = .current) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         let time = clock(date, timeZone: timeZone, locale: locale)
@@ -106,7 +106,7 @@ public enum Formatters {
     }
 
     /// 経路条件の見出し → "現在地 → 東京駅"
-    public static func routeTitle(origin: RouteEndpoint, destination: Place) -> String {
+    static func routeTitle(origin: RouteEndpoint, destination: Place) -> String {
         "\(origin.displayName) → \(destination.displayName)"
     }
 }

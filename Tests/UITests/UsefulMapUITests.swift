@@ -310,7 +310,6 @@ extension UsefulMapUITests {
 enum A11y {
     static let searchField = "search.field"
     static let placeTitle = "placeDetail.title"
-    static let routeButton = "placeDetail.route"
     static let saveButton = "placeDetail.save"
     static let lastOpenedURL = "debug.lastOpenedURL"
     static let routeError = "routeCompare.error"

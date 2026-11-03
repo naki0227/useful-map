@@ -5,11 +5,11 @@ import Foundation
 /// 実測では `!8j` は「ローカル表示したい年月日時分を、そのまま UTC の壁時計として epoch 化した値」と
 /// 一致した。`Date.timeIntervalSince1970` をそのまま入れると表示時刻がタイムゾーン分ずれるため、
 /// 変換をこの型だけに隔離し、固定 fixture で回帰テストする。
-public enum GoogleTimestamp {
+enum GoogleTimestamp {
     /// - Parameters:
     ///   - date: 絶対時刻。
     ///   - timeZone: その絶対時刻を「何時として見せたいか」を決めるタイムゾーン。
-    public static func value(for date: Date, timeZone: TimeZone) -> Int {
+    static func value(for date: Date, timeZone: TimeZone) -> Int {
         var localCalendar = Calendar(identifier: .gregorian)
         localCalendar.timeZone = timeZone
         let wallClock = localCalendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
@@ -32,7 +32,7 @@ public enum GoogleTimestamp {
     }
 
     /// `!8j` 値を元の壁時計時刻へ戻す（契約監視の期待値検証・デバッグ用）。
-    public static func wallClockComponents(from value: Int) -> DateComponents {
+    static func wallClockComponents(from value: Int) -> DateComponents {
         var utcCalendar = Calendar(identifier: .gregorian)
         utcCalendar.timeZone = utc
         let date = Date(timeIntervalSince1970: TimeInterval(value))

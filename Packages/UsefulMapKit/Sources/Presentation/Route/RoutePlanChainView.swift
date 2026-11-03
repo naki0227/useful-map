@@ -84,8 +84,8 @@ struct RoutePlanChainView: View {
     private func nodeRow(_ node: RouteNode, at index: Int) -> some View {
         if viewModel.editingNodeIndex == index {
             InlinePlaceField(index: index,
-                             title: nodeTitle(for: node, at: index),
-                             placeholder: nodeTitle(for: node, at: index),
+                             title: nodeTitle(at: index),
+                             placeholder: nodeTitle(at: index),
                              allowsCurrentLocation: index == 0,
                              dependencies: dependencies,
                              center: center,
@@ -141,7 +141,7 @@ struct RoutePlanChainView: View {
         return TransitStopClassifier.kind(of: node.place).symbolName
     }
 
-    private func nodeTitle(for node: RouteNode, at index: Int) -> String {
+    private func nodeTitle(at index: Int) -> String {
         if index == 0 { return L10n.string("editor.origin") }
         if index == viewModel.nodes.count - 1 { return L10n.string("editor.destination") }
         return L10n.string("editor.waypoint")

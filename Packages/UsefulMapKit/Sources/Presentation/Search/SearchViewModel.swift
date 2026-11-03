@@ -3,12 +3,12 @@ import Foundation
 
 /// S02 検索。入力変更時は古い Task を cancel し、遅れて返った結果で UI を上書きしない（非機能要件 14）。
 @MainActor
-public final class SearchViewModel: ObservableObject {
-    @Published public var queryText: String = ""
-    @Published public private(set) var results: [Place] = []
-    @Published public private(set) var isSearching = false
-    @Published public private(set) var errorMessage: String?
-    @Published public private(set) var hasCompletedSearch = false
+final class SearchViewModel: ObservableObject {
+    @Published var queryText: String = ""
+    @Published private(set) var results: [Place] = []
+    @Published private(set) var isSearching = false
+    @Published private(set) var errorMessage: String?
+    @Published private(set) var hasCompletedSearch = false
 
     private let searchService: PlaceSearching
     private let store: LocalStoring
@@ -20,7 +20,7 @@ public final class SearchViewModel: ObservableObject {
     /// 遅延応答の取り違えを防ぐ世代番号。
     private var generation = 0
 
-    public init(dependencies: AppDependencies, centerProvider: @escaping () -> Coordinate? = { nil }) {
+    init(dependencies: AppDependencies, centerProvider: @escaping () -> Coordinate? = { nil }) {
         self.searchService = dependencies.searchService
         self.store = dependencies.store
         self.now = dependencies.now
@@ -33,17 +33,17 @@ public final class SearchViewModel: ObservableObject {
     }
 
     /// 検索結果 0 件を明示表示する条件（仕様書 13）。
-    public var showsEmptyState: Bool {
+    var showsEmptyState: Bool {
         hasCompletedSearch && !isSearching && results.isEmpty && errorMessage == nil && !trimmedQuery.isEmpty
     }
 
-    public var trimmedQuery: String {
+    var trimmedQuery: String {
         queryText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// 入力変更。返り値の Task を await するとテストから完了を待てる。
     @discardableResult
-    public func updateQuery(_ text: String) -> Task<Void, Never> {
+    func updateQuery(_ text: String) -> Task<Void, Never> {
         queryText = text
         searchTask?.cancel()
         generation += 1
@@ -75,7 +75,7 @@ public final class SearchViewModel: ObservableObject {
 
     /// デバウンスを挟まず即時に検索する（Enter 押下時）。
     @discardableResult
-    public func searchNow() -> Task<Void, Never> {
+    func searchNow() -> Task<Void, Never> {
         searchTask?.cancel()
         generation += 1
         let currentGeneration = generation
@@ -94,7 +94,7 @@ public final class SearchViewModel: ObservableObject {
         return task
     }
 
-    public func clear() {
+    func clear() {
         searchTask?.cancel()
         generation += 1
         queryText = ""
@@ -105,7 +105,7 @@ public final class SearchViewModel: ObservableObject {
     }
 
     /// 候補選択時に最近の検索へ記録する。
-    public func select(_ place: Place) {
+    func select(_ place: Place) {
         store.recordSearch(place, at: now())
     }
 

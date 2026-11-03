@@ -94,12 +94,6 @@ struct RoutePlannerTests {
     private let umedaBusStop = Place(name: "梅田三丁目バス停", latitude: 34.7230, longitude: 135.5000)
     /// 自宅から約 800m。徒歩 11 分ほどで、分割の閾値に届かない。
     private let nearStation = Place(name: "近所の駅", latitude: 34.7428, longitude: 135.5000)
-    /// 京都駅から約 3.3km 離れた目的地。降車後の徒歩が 45 分を超える。
-    private let ruralInn = Place(name: "山あいの宿", latitude: 35.0158, longitude: 135.7587)
-    /// 京都駅から約 330m。
-    private let kyotoBusStop = Place(name: "京都駅前バス停", latitude: 34.9888, longitude: 135.7587)
-    /// 宿から約 220m。
-    private let innBusStop = Place(name: "宿前バス停", latitude: 35.0138, longitude: 135.7587)
 
     private func node(_ place: Place, _ kind: RouteNode.Kind) -> RouteNode {
         RouteNode(place: place, kind: kind)

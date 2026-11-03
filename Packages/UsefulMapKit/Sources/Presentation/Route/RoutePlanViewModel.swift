@@ -6,24 +6,24 @@ import Foundation
 /// 画面遷移を挟まずに、ノード（地点）と区間（移動手段）をその場で編集できるようにする。
 /// 取得は編集のたびに走るため、直前のリクエストは破棄する。
 @MainActor
-public final class RoutePlanViewModel: ObservableObject {
-    @Published public private(set) var plan: RoutePlan
-    @Published public private(set) var isLoading = false
-    @Published public private(set) var errorMessage: String?
-    @Published public private(set) var lastOpenOutcome: DetailOpenOutcome?
-    @Published public private(set) var lastOpenedURL: String?
-    @Published public var walkingPace: WalkingPace = .normal {
+final class RoutePlanViewModel: ObservableObject {
+    @Published private(set) var plan: RoutePlan
+    @Published private(set) var isLoading = false
+    @Published private(set) var errorMessage: String?
+    @Published private(set) var lastOpenOutcome: DetailOpenOutcome?
+    @Published private(set) var lastOpenedURL: String?
+    @Published var walkingPace: WalkingPace = .normal {
         didSet {
             guard walkingPace != oldValue else { return }
             reload(recomputeAll: true)
         }
     }
     /// インライン編集中のノード。nil なら編集していない。
-    @Published public var editingNodeIndex: Int?
+    @Published var editingNodeIndex: Int?
     /// 経由地を追加するために、どの区間の途中を編集しているか。
-    @Published public var addingWaypointAfterSegment: Int?
+    @Published var addingWaypointAfterSegment: Int?
     /// 便を選び直している区間。
-    @Published public var pickingDepartureAt: Int?
+    @Published var pickingDepartureAt: Int?
 
     private let planner: RoutePlanner
     private let locationService: LocationProviding
@@ -34,7 +34,7 @@ public final class RoutePlanViewModel: ObservableObject {
     private var loadTask: Task<Void, Never>?
     private var generation = 0
 
-    public init(plan: RoutePlan, dependencies: AppDependencies) {
+    init(plan: RoutePlan, dependencies: AppDependencies) {
         self.plan = plan
         self.planner = dependencies.planner
         self.locationService = dependencies.locationService
@@ -48,7 +48,7 @@ public final class RoutePlanViewModel: ObservableObject {
     // MARK: - 取得
 
     @discardableResult
-    public func reload(recomputeAll: Bool = false) -> Task<Void, Never> {
+    func reload(recomputeAll: Bool = false) -> Task<Void, Never> {
         loadTask?.cancel()
         generation += 1
         let currentGeneration = generation
@@ -112,7 +112,7 @@ public final class RoutePlanViewModel: ObservableObject {
 
     /// 出発地・目的地から組み直す（駅の推定と再帰分割をやり直す）。
     @discardableResult
-    public func rebuild(preset: TransportMode) -> Task<Void, Never> {
+    func rebuild(preset: TransportMode) -> Task<Void, Never> {
         loadTask?.cancel()
         generation += 1
         let currentGeneration = generation
@@ -161,29 +161,24 @@ public final class RoutePlanViewModel: ObservableObject {
     // MARK: - 編集（すべてその場で完結し、画面遷移を挟まない）
 
     /// 矢印のアイコンを押したときの区間モード切り替え。
-    public func toggleMode(at index: Int) {
+    func toggleMode(at index: Int) {
         plan.cycleMode(at: index)
         reload()
     }
 
-    public func setMode(_ mode: TransportMode, at index: Int) {
-        plan.setMode(mode, at: index)
-        reload()
-    }
-
     /// 上部タブのプリセット。
-    public func applyPreset(_ preset: Preset) {
+    func applyPreset(_ preset: Preset) {
         rebuild(preset: preset.mode)
     }
 
-    public func updatePlace(_ place: Place, at index: Int) {
+    func updatePlace(_ place: Place, at index: Int) {
         plan.updatePlace(place, at: index)
         editingNodeIndex = nil
         reload()
     }
 
     /// 区間の途中に経由地を足す。
-    public func insertWaypoint(_ place: Place, afterSegment index: Int) {
+    func insertWaypoint(_ place: Place, afterSegment index: Int) {
         plan.insertNode(RouteNode(place: place, kind: .waypoint), afterSegment: index)
         addingWaypointAfterSegment = nil
         editingNodeIndex = nil
@@ -192,38 +187,38 @@ public final class RoutePlanViewModel: ObservableObject {
 
     /// 指定した区間の途中に経由地を足し始める。
     /// 既存のノードは隠さず、区間の間に新しい入力欄を差し込む。
-    public func beginAddingWaypoint(afterSegment index: Int) {
+    func beginAddingWaypoint(afterSegment index: Int) {
         guard plan.segments.indices.contains(index) else { return }
         addingWaypointAfterSegment = index
         editingNodeIndex = nil
     }
 
-    public func cancelAddingWaypoint() {
+    func cancelAddingWaypoint() {
         addingWaypointAfterSegment = nil
     }
 
     /// 便の選び直しを始める。
-    public func beginPickingDeparture(at index: Int) {
+    func beginPickingDeparture(at index: Int) {
         let list = plan.segments
         guard list.indices.contains(index), list[index].mode == .transit else { return }
         pickingDepartureAt = index
     }
 
-    public func cancelPickingDeparture() {
+    func cancelPickingDeparture() {
         pickingDepartureAt = nil
     }
 
     /// 差分の提案を受け入れる / 退ける。
-    public func acceptUpdate(at index: Int) {
+    func acceptUpdate(at index: Int) {
         plan.acceptUpdate(at: index)
     }
 
-    public func dismissUpdate(at index: Int) {
+    func dismissUpdate(at index: Int) {
         plan.dismissUpdate(at: index)
     }
 
     /// 編集中のノードへ地点を反映する。経由地の追加中なら挿入する。
-    public func commitPlace(_ place: Place, at index: Int) {
+    func commitPlace(_ place: Place, at index: Int) {
         if let segment = addingWaypointAfterSegment {
             insertWaypoint(place, afterSegment: segment)
         } else {
@@ -236,7 +231,7 @@ public final class RoutePlanViewModel: ObservableObject {
     /// 自動で推定した駅を外した場合は「ここは通らない」という意思表示なので、
     /// 統合後の区間をロックして再推定の対象から外す。
     /// ユーザーが足した経由地を外した場合はロックせず、自動推定に戻す。
-    public func removeNode(at index: Int) {
+    func removeNode(at index: Int) {
         let wasInferred = plan.nodes[safeIndex: index]?.isInferred ?? false
         plan.removeNode(at: index)
         if wasInferred, index > 0 {
@@ -246,14 +241,14 @@ public final class RoutePlanViewModel: ObservableObject {
     }
 
     /// 出発地と目的地の入れ替え（ワンボタン）。
-    public func swapEndpoints() {
+    func swapEndpoints() {
         plan.reverse()
         reload(recomputeAll: true)
     }
 
     /// 出発地を現在地にする（ワンボタン）。
     @discardableResult
-    public func useCurrentLocation(at index: Int = 0) -> Task<Void, Never> {
+    func useCurrentLocation(at index: Int = 0) -> Task<Void, Never> {
         Task { [weak self] in
             guard let self else { return }
             do {
@@ -269,13 +264,14 @@ public final class RoutePlanViewModel: ObservableObject {
     }
 
     /// 徒歩ペースをボタン 1 つで切り替える。
-    public func cycleWalkingPace() {
+    func cycleWalkingPace() {
         walkingPace = walkingPace.next
     }
 
+    // periphery:ignore - 「時刻を押すと便を選び直せる」の確定側。選択 UI（pickingDepartureAt を受ける画面）が未実装のため、まだ呼ばれていない。
     /// 便を選び直す（駅は同じまま時刻だけ変える）。前後の区間は取り直す。
     @discardableResult
-    public func pinTime(_ anchor: TimeAnchor, at index: Int) -> Task<Void, Never> {
+    func pinTime(_ anchor: TimeAnchor, at index: Int) -> Task<Void, Never> {
         loadTask?.cancel()
         generation += 1
         let currentGeneration = generation
@@ -300,12 +296,13 @@ public final class RoutePlanViewModel: ObservableObject {
         return task
     }
 
-    public func clearPin() {
+    // periphery:ignore - 便の選び直しの解除。pinTime と同じく、選択 UI が未実装のため、まだ呼ばれていない。
+    func clearPin() {
         plan.clearPin()
         reload(recomputeAll: true)
     }
 
-    public func setTimePreference(_ preference: TimePreference, date: Date?) {
+    func setTimePreference(_ preference: TimePreference, date: Date?) {
         plan.timePreference = preference
         plan.requestedDate = preference.requiresDate ? (date ?? now()) : nil
         plan.clearPin()
@@ -315,7 +312,7 @@ public final class RoutePlanViewModel: ObservableObject {
     // MARK: - 外部詳細遷移
 
     /// 指定した区間を Google Maps へ委譲する。
-    public func openDetail(at index: Int) async {
+    func openDetail(at index: Int) async {
         guard let option = detailOption(at: index) else { return }
         let outcome = await detailLinking.open(option)
         lastOpenOutcome = outcome
